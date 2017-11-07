@@ -1,0 +1,7 @@
+[package]
+name = "zesplot"
+version = "0.1.0"
+authors = ["Luuk Hendriks <mail@luukhendriks.eu>"]
+
+[dependencies]
+svg = "*"
