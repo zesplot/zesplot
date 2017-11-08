@@ -16,79 +16,282 @@ use std::fs::File;
 //    //r.description.get("w").unwrap()
 //}
 
+#[derive (Copy, Clone)]
+struct Area {
+    x: f64,
+    y: f64,
+    w: f64,
+    h: f64,
+    surface: f64,
+}
+
+impl Area {
+    fn new(surface: f64, ratio: f64) -> Area {
+        let w = surface.powf(ratio);
+        let h = surface.powf(1.0 - ratio);
+        //println!("area::new {} * {}", w, h);
+        Area { x: 0.0, y: 0.0, w, h, surface} 
+    }
+    fn get_ratio(&self) -> f64 {
+        if &self.h >= &self.w {
+            &self.w  / &self.h
+        } else {
+            &self.h / &self.w
+        }
+    }
+
+    fn set_height(&mut self, new_h: f64) -> () {
+        //let resize_factor = &self.surface
+        self.w = self.surface / new_h;
+        self.h = new_h;
+    }
+}
+
+struct Row {
+    x: f64,
+    y: f64,
+    w: f64,
+    h: f64,
+    vertical: bool,
+    areas: Vec<Area>,
+}
+
+impl Row {
+    fn new(x: f64, y: f64, vertical: bool, mut area: Area) -> Row {
+        println!("Row::new at {},{}", x, y);
+        let max_h = 100.0 - y;
+        let max_w = 100.0 - x;
+        //if area.h > max_h && max_h > 0.0 {
+        if vertical {
+            area.h = max_h;
+            area.w = area.surface / area.h;
+        //} else if area.w > max_w {
+        } else {
+            area.w = max_w;
+            area.h = area.surface / area.w;
+        }
+        println!("  {} * {}", area.w, area.h);
+        Row {x, y, w: area.w, h: area.h, vertical, areas:vec![area]}
+/*
+        if vertical {
+            let max_h = 100.0 - y;
+            if area.h < max_h {
+                Row {x, y, w: area.w, h: area.h, vertical, areas:vec![area]}
+            } else {
+                area.h = max_h;
+                area.w = area.surface / area.h;
+                Row {x, y, w: area.w, h: area.h, vertical, areas:vec![area]}
+            }
+
+        } else {
+            let max_w = 100.0 - x;
+            if area.w < max_w {
+                Row {x, y, w: area.w, h: area.h, vertical, areas:vec![area]}
+            } else {
+                println!("new horizontal row with area:");
+                area.w = max_w;
+                area.h = area.surface / area.w;
+                println!("    {} * {}", area.w, area.h);
+                Row {x, y, w: area.w, h: area.h, vertical, areas:vec![area]}
+            }
+        }
+        */
+    }
+
+    fn test(&mut self, area: Area) -> bool {
+        let mut better = false;
+        let cur_ratio = self.calc_ratio();
+        &self.push(area);
+        better = self.calc_ratio() >= cur_ratio;
+        &self.pop();
+        //println!("better? {}", better);
+        better
+    }
+
+    fn reflow(&mut self) -> () {
+        //println!("reflow:");
+        if self.vertical {
+            let new_w = self.area() / self.h;
+            self.w = new_w;
+            let mut cur_y = self.y;
+            for a in &mut self.areas {
+                a.h = a.surface / new_w;
+                a.w = new_w;
+                a.x = self.x;
+                a.y = cur_y;
+                cur_y += a.h;
+                //println!("  area {} set cur_y to {}", a.surface, cur_y);
+            }
+        } else {
+            let new_h = self.area() / self.w;
+            self.h = new_h;
+            let mut cur_x = self.x;
+            for a in &mut self.areas {
+                a.w = a.surface / new_h;
+                a.h = new_h;
+                a.y = self.y;
+                a.x = cur_x;
+                cur_x += a.w;
+                //println!("  area {} set cur_y to {}", a.surface, cur_x);
+            }
+        }
+    }
+
+    fn pop(&mut self) -> () {
+        let _popped = &self.areas.pop();
+        self.reflow();
+    }
+
+    fn push(&mut self, mut area: Area) -> () {
+        if self.vertical {
+            area.x = self.x;
+        } else {
+            area.y = self.y;
+        }
+
+        &self.areas.push(area);
+        self.reflow();
+    }
+
+
+    fn area(&self) -> f64 {
+        self.areas.iter().fold(0.0, |mut s, a| {s += a.surface; s})
+    }
+
+    fn calc_ratio(&self) -> f64 {
+        self.areas.iter().fold(0.0, |mut s, a| {s += a.get_ratio(); s})
+    }
+}
+
 fn main() {
     //let prefixes = vec!["2001:db8:1::/48", "2001:db8:2::/48", "2001:db8:3:1:/64"];
-    //let areas: Vec<f64> = vec![128.0 - 29.0, 128.0 - 32.0, 128.0 - 32.0, 128.0 - 48.0, 128.0 - 48.0, 128.0 - 64.0];
 
-    let mut areas: Vec<f64> = Vec::new();
+    /*
+    let test_area = Area::new(40.0, 3.0/8.0);
+    let mut test_row = Row::new(0.0, 0.0, true, test_area);
+    println!("surface: {}", test_area.surface);
+    for a in &test_row.areas {
+        println!("  ratio: {}", a.get_ratio());
+        println!("  w x h: {} x {}", a.w, a.h);
+    }
+    println!("calc_ratio: {}", test_row.calc_ratio());
+    test_row.push(test_area.clone());
+    println!("surface: {}", test_area.surface);
+    for a in &test_row.areas {
+        println!("  ratio: {}", a.get_ratio());
+        println!("  w x h: {} x {}", a.w, a.h);
+    }
+    println!("calc_ratio: {}", test_row.calc_ratio());
+
+    test_row.push(test_area.clone());
+    println!("surface: {}", test_area.surface);
+    for a in &test_row.areas {
+        println!("  ratio: {}", a.get_ratio());
+        println!("  w x h: {} x {}", a.w, a.h);
+    }
+    println!("calc_ratio: {}", test_row.calc_ratio());
+
+    println!("--");
+    test_row.pop();
+    println!("surface: {}", test_area.surface);
+    for a in &test_row.areas {
+        println!("  ratio: {}", a.get_ratio());
+        println!("  w x h: {} x {}", a.w, a.h);
+    }
+    println!("calc_ratio: {}", test_row.calc_ratio());
+*/
+
+
+
+    let mut inputs: Vec<f64> = Vec::new();
 
     for line in BufReader::new(File::open("input.txt").unwrap()).lines() {
-        areas.push(line.unwrap().parse().unwrap());
+        //inputs.push(line.unwrap().parse().unwrap());
+        inputs.push(2_f64.powf(128_f64 - line.unwrap().parse::<f64>().unwrap()  ));
     }
     //areas.sort(); //FIXME currently reading sorted input
     
     // initial aspect ratio
     let init_ar: f64 = 1_f64 / (8.0/3.0);
 
-    let area_total = areas.iter().fold(0.0, |mut s, i| { s += *i; s} );
-    let norm_factor = (100.0 * 100.0) / area_total;
-    println!("total: {}", area_total);
-    let mut rects = Vec::new();
+    let input_area_total = inputs.iter().fold(0.0, |mut s, i| { s += *i; s} );
+    let norm_factor = (100.0 * 100.0) / input_area_total;
+
+    let mut areas: Vec<Area> = Vec::new();
+    for i in inputs {
+        areas.push(Area::new(i * norm_factor, init_ar));
+    }
+
+
+
+    let mut rows = Vec::new();
+    let (&first_area, remaining_areas) = areas.split_first().unwrap();
+    let (mut new_row_x, mut new_row_y) = (0.0, 0.0);
+    rows.push(Row::new(new_row_x, new_row_y, true, first_area));
     let mut i = 0;
 
-    let (mut cur_x, mut cur_y) = (0.0, 0.0);
-    let mut direction = false; // boolean to work either horizontally or vertically
-    let mut new_row = false;
-    for a in areas {
-        // normalize size of a
-        let a = a * norm_factor;
+    let direction = false; // boolean to work either horizontally or vertically
+    for mut a in remaining_areas {
 
-        if new_row {
-            cur_y = 0.0;
-            new_row = false;
+        let need_new_row: bool = {
+            let cur_row = rows.last_mut().unwrap();
+            //cur_row.push(a);
+            //false
+            if cur_row.test(*a) {
+                cur_row.push(*a);
+                false
+            } else {
+                true
+            }
+        };
+
+        if need_new_row {
+            let cur_row_w = rows.last().unwrap().w ;
+            let cur_row_h = rows.last().unwrap().h;
+            let cur_row_vertical = rows.last().unwrap().vertical;
+            if cur_row_vertical {
+                new_row_x += cur_row_w;
+                //println!("new horizontal row at {},{}", new_row_x, new_row_y);
+                rows.push(Row::new(new_row_x, new_row_y, false, *a));
+            } else {
+                new_row_y += cur_row_h;
+                // create new vertical row
+                //println!("new vertical row at {},{}", new_row_x, new_row_y);
+                rows.push(Row::new(new_row_x, new_row_y, true, *a));
+            }
+            rows.last_mut().unwrap().reflow();
         }
 
-        let mut w = a.powf(init_ar);
-        let mut h = a.powf(1.0 - init_ar);
-
-        if !direction {
-            let tmp = w;
-            w = h;
-            h = tmp;
-        }
-
-        if w > (100.0 - cur_x) {
-            let tmp = (100.0 - cur_x) / w; 
-            h = h * (1.0/tmp);
-            w = 100.0 - cur_x;
-            direction = false;
-        } else if h > (100.0 - cur_y) {
-            let tmp = (100.0 - cur_y) / h; 
-            w = w * (1.0/tmp);
-            h = 100.0 - cur_y;
-            direction = true;
-            new_row = true;
-        }
-
-        println!("{} = {} x {}", a, w, h); 
-        let rect = Rectangle::new()
-                .set("x", cur_x)
-                .set("y", cur_y)
-                .set("width", w)
-                .set("height", h)
-                .set("fill", "magenta")
-                .set("stroke-width", 1)
-                .set("stroke", "green")
-                .set("opacity", 0.25)
-                ;
-        if direction {
-            cur_x = cur_x + w;
-        } else {
-            cur_y = cur_y + h;
-        }
-        //direction = !direction;
-        rects.push(rect);
         i = i + 1;
+    }
+
+    println!(" --- drawing --- ");
+    let mut rects: Vec<Rectangle> = Vec::new();
+    //let (mut cur_x, mut cur_y) = (0, 0);
+    for mut row in rows {
+        let (direction, color) = {
+            if row.vertical {
+                ("vertical", "red")
+            } else {
+                ("horizontal", "green")
+            }
+        };
+        //println!("new row: {}", direction);
+        for area in row.areas {
+            //println!("{},{} {} * {}", area.x, area.y, area.w, area.h);
+            let rect = Rectangle::new()
+                .set("x", area.x)
+                .set("y", area.y)
+                .set("width", area.w)
+                .set("height", area.h)
+                .set("fill", color)
+                .set("stroke-width", 0.0005 * area.surface)
+                .set("stroke", "black")
+                .set("opacity", 0.25)
+                //.set("opacity", (area.x * area.y) / 10000_f64)
+                ;
+            rects.push(rect)
+        }
     }
 
     let data = Data::new()
@@ -101,15 +304,9 @@ fn main() {
     let path = Path::new()
         .set("fill", "none")
         .set("stroke", "black")
-        .set("stroke-width", 1)
+        .set("stroke-width", 0.02)
         .set("d", data);
 
-//    let rect = Rectangle::new()
-//                .set("x", 0)
-//                .set("y", 0)
-//                .set("width", 100)
-//                .set("height", 100)
-//                .set("d", data);
 
     let mut document = Document::new().set("viewBox", (0, 0, 105, 105))
         .add(path);
