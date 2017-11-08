@@ -58,7 +58,7 @@ struct Row {
 
 impl Row {
     fn new(x: f64, y: f64, vertical: bool, mut area: Area) -> Row {
-        println!("Row::new at {},{}", x, y);
+        //println!("Row::new at {},{}", x, y);
         let max_h = 100.0 - y;
         let max_w = 100.0 - x;
         //if area.h > max_h && max_h > 0.0 {
@@ -70,7 +70,7 @@ impl Row {
             area.w = max_w;
             area.h = area.surface / area.w;
         }
-        println!("  {} * {}", area.w, area.h);
+        //println!("  {} * {}", area.w, area.h);
         Row {x, y, w: area.w, h: area.h, vertical, areas:vec![area]}
 /*
         if vertical {
@@ -164,44 +164,6 @@ impl Row {
 }
 
 fn main() {
-    //let prefixes = vec!["2001:db8:1::/48", "2001:db8:2::/48", "2001:db8:3:1:/64"];
-
-    /*
-    let test_area = Area::new(40.0, 3.0/8.0);
-    let mut test_row = Row::new(0.0, 0.0, true, test_area);
-    println!("surface: {}", test_area.surface);
-    for a in &test_row.areas {
-        println!("  ratio: {}", a.get_ratio());
-        println!("  w x h: {} x {}", a.w, a.h);
-    }
-    println!("calc_ratio: {}", test_row.calc_ratio());
-    test_row.push(test_area.clone());
-    println!("surface: {}", test_area.surface);
-    for a in &test_row.areas {
-        println!("  ratio: {}", a.get_ratio());
-        println!("  w x h: {} x {}", a.w, a.h);
-    }
-    println!("calc_ratio: {}", test_row.calc_ratio());
-
-    test_row.push(test_area.clone());
-    println!("surface: {}", test_area.surface);
-    for a in &test_row.areas {
-        println!("  ratio: {}", a.get_ratio());
-        println!("  w x h: {} x {}", a.w, a.h);
-    }
-    println!("calc_ratio: {}", test_row.calc_ratio());
-
-    println!("--");
-    test_row.pop();
-    println!("surface: {}", test_area.surface);
-    for a in &test_row.areas {
-        println!("  ratio: {}", a.get_ratio());
-        println!("  w x h: {} x {}", a.w, a.h);
-    }
-    println!("calc_ratio: {}", test_row.calc_ratio());
-*/
-
-
 
     let mut inputs: Vec<f64> = Vec::new();
 
@@ -298,7 +260,7 @@ fn main() {
                 .set("fill", colors[i % colors.len()])
                 .set("stroke-width", 0.0005 * area.surface)
                 .set("stroke", "black")
-                .set("opacity", 0.25)
+                .set("opacity", 0.5)
                 //.set("opacity", (area.x * area.y) / 10000_f64)
                 ;
             rects.push(rect);
