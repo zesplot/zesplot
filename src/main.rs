@@ -268,6 +268,16 @@ fn main() {
     println!(" --- drawing --- ");
     let mut rects: Vec<Rectangle> = Vec::new();
     //let (mut cur_x, mut cur_y) = (0, 0);
+    //
+
+    let colors = vec![  "#ff0000",
+                        "#00ff00",
+                        "#0000ff",
+                        "#ffff00",
+                        "#00ffff",
+                        "#ff00ff",
+                        ];
+    let mut i = 0;
     for mut row in rows {
         let (direction, color) = {
             if row.vertical {
@@ -284,13 +294,15 @@ fn main() {
                 .set("y", area.y)
                 .set("width", area.w)
                 .set("height", area.h)
-                .set("fill", color)
+                //.set("fill", color)
+                .set("fill", colors[i % colors.len()])
                 .set("stroke-width", 0.0005 * area.surface)
                 .set("stroke", "black")
                 .set("opacity", 0.25)
                 //.set("opacity", (area.x * area.y) / 10000_f64)
                 ;
-            rects.push(rect)
+            rects.push(rect);
+            i += 1;
         }
     }
 
