@@ -48,7 +48,7 @@ impl Row {
     fn new(x: f64, y: f64, vertical: bool, mut area: Area) -> Row {
         //println!("Row::new at {},{}", x, y);
         let max_h = 100.0 - y;
-        let max_w = 100.0 - x;
+        let max_w = 150.0 - x;
         //if area.h > max_h && max_h > 0.0 {
         if vertical {
             area.h = max_h;
@@ -62,21 +62,11 @@ impl Row {
         Row {x, y, w: area.w, h: area.h, vertical, areas:vec![area]}
     }
 
-    fn test(&mut self, area: &Area) -> bool {
-        let cur_ratio = self.calc_ratio();
-        let tmp_area = Area {x: 0.0, y: 0.0, w: area.w, h: area.h, surface: area.surface, id: "tmp".to_string()};
-        &self.push(tmp_area);
-        //&self.push(&mut area);
-        let better = self.calc_ratio() >= cur_ratio;
-        &self.pop();
-        //println!("better? {}", better);
-        better
-    }
-
     fn try(&mut self, area: Area) -> Option<Area> {
-        let cur_ratio = self.calc_ratio();
+        let cur_worst = self.calc_worst();
         &self.push(area);
-        if self.calc_ratio() >= cur_ratio {
+
+        if self.calc_worst() >= cur_worst {
             None
         } else {
             self.pop()
@@ -130,25 +120,19 @@ impl Row {
         self.reflow();
     }
 
-    fn _push(&mut self, mut area: Area) -> () {
-        if self.vertical {
-            area.x = self.x;
-        } else {
-            area.y = self.y;
-        }
-
-        &self.areas.push(area);
-        self.reflow();
-    }
-
-
     fn area(&self) -> f64 {
         self.areas.iter().fold(0.0, |mut s, a| {s += a.surface; s})
     }
 
-    fn calc_ratio(&self) -> f64 {
-        self.areas.iter().fold(0.0, |mut s, a| {s += a.get_ratio(); s})
+    fn calc_worst(&self) -> f64 {
+        self.areas.iter().fold(1.0, |mut w, a| {
+            if a.get_ratio() < w {
+                w = a.get_ratio();
+            }
+            w
+        })
     }
+
 }
 
 fn main() {
@@ -165,7 +149,7 @@ fn main() {
     let init_ar: f64 = 1_f64 / (8.0/3.0);
 
     let input_area_total = inputs.iter().fold(0.0, |mut s, i| { s += *i; s} );
-    let norm_factor = (100.0 * 100.0) / input_area_total;
+    let norm_factor = (150.0 * 100.0) / input_area_total;
 
     let mut areas: Vec<Area> = Vec::new();
     for i in inputs {
@@ -288,7 +272,7 @@ fn main() {
         .set("d", data);
 
 
-    let mut document = Document::new().set("viewBox", (0, 0, 105, 105))
+    let mut document = Document::new().set("viewBox", (0, 0, 155, 105))
         .add(path);
     for r in rects {
         document.append(r);
