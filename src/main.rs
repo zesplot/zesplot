@@ -72,30 +72,6 @@ impl Row {
         }
         //println!("  {} * {}", area.w, area.h);
         Row {x, y, w: area.w, h: area.h, vertical, areas:vec![area]}
-/*
-        if vertical {
-            let max_h = 100.0 - y;
-            if area.h < max_h {
-                Row {x, y, w: area.w, h: area.h, vertical, areas:vec![area]}
-            } else {
-                area.h = max_h;
-                area.w = area.surface / area.h;
-                Row {x, y, w: area.w, h: area.h, vertical, areas:vec![area]}
-            }
-
-        } else {
-            let max_w = 100.0 - x;
-            if area.w < max_w {
-                Row {x, y, w: area.w, h: area.h, vertical, areas:vec![area]}
-            } else {
-                println!("new horizontal row with area:");
-                area.w = max_w;
-                area.h = area.surface / area.w;
-                println!("    {} * {}", area.w, area.h);
-                Row {x, y, w: area.w, h: area.h, vertical, areas:vec![area]}
-            }
-        }
-        */
     }
 
     fn test(&mut self, area: Area) -> bool {
