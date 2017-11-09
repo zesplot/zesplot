@@ -9,6 +9,10 @@ use std::io::{BufReader};
 use std::io::prelude::*;
 use std::fs::File;
 
+
+const WIDTH: f64 = 160.0;
+const HEIGHT: f64 = 100.0;
+
 //#[derive (Copy, Clone)]
 struct Area {
     x: f64,
@@ -47,8 +51,8 @@ struct Row {
 impl Row {
     fn new(x: f64, y: f64, vertical: bool, mut area: Area) -> Row {
         //println!("Row::new at {},{}", x, y);
-        let max_h = 100.0 - y;
-        let max_w = 150.0 - x;
+        let max_h = HEIGHT - y;
+        let max_w = WIDTH - x;
         //if area.h > max_h && max_h > 0.0 {
         if vertical {
             area.h = max_h;
@@ -139,7 +143,7 @@ fn main() {
 
     let mut inputs: Vec<f64> = Vec::new();
 
-    for line in BufReader::new(File::open("input.txt").unwrap()).lines() {
+    for line in BufReader::new(File::open("allrirs.txt").unwrap()).lines() {
         //inputs.push(line.unwrap().parse().unwrap());
         inputs.push(2_f64.powf(128_f64 - line.unwrap().parse::<f64>().unwrap()  ));
     }
@@ -149,7 +153,7 @@ fn main() {
     let init_ar: f64 = 1_f64 / (8.0/3.0);
 
     let input_area_total = inputs.iter().fold(0.0, |mut s, i| { s += *i; s} );
-    let norm_factor = (150.0 * 100.0) / input_area_total;
+    let norm_factor = (WIDTH * HEIGHT) / input_area_total;
 
     let mut areas: Vec<Area> = Vec::new();
     for i in inputs {
@@ -167,39 +171,6 @@ fn main() {
     let mut i = 0;
 
     for a in remaining_areas {
-
-//        let need_new_row: bool = {
-//            let cur_row = rows.last_mut().unwrap();
-//            //cur_row.push(a);
-//            //false
-//            if cur_row.test(&a) {
-//                //cur_row.push(a);
-//                false
-//            } else {
-//                true
-//            }
-//        };
-//
-//        //let need_new_row = true;
-//
-//        if need_new_row {
-//            let cur_row_w = rows.last().unwrap().w ;
-//            let cur_row_h = rows.last().unwrap().h;
-//            let cur_row_vertical = rows.last().unwrap().vertical;
-//            if cur_row_vertical {
-//                new_row_x += cur_row_w;
-//                //println!("new horizontal row at {},{}", new_row_x, new_row_y);
-//                rows.push(Row::new(new_row_x, new_row_y, false, a));
-//            } else {
-//                new_row_y += cur_row_h;
-//                // create new vertical row
-//                //println!("new vertical row at {},{}", new_row_x, new_row_y);
-//                rows.push(Row::new(new_row_x, new_row_y, true, a));
-//            }
-//            rows.last_mut().unwrap().reflow();
-//        } else {
-//            rows.last_mut().unwrap().push(a);
-//        }
 
         if let Some(area) = rows.last_mut().unwrap().try(a) {
 
@@ -224,15 +195,13 @@ fn main() {
 
     println!(" --- drawing --- ");
     let mut rects: Vec<Rectangle> = Vec::new();
-    //let (mut cur_x, mut cur_y) = (0, 0);
-    //
 
     let colors = vec![  "#ff0000",
                         "#00ff00",
                         "#0000ff",
                         "#ffff00",
                         "#00ffff",
-                        "#ff00ff",
+                        //"#ff00ff",
                         ];
     let mut i = 0;
     for row in rows {
@@ -272,7 +241,7 @@ fn main() {
         .set("d", data);
 
 
-    let mut document = Document::new().set("viewBox", (0, 0, 155, 105))
+    let mut document = Document::new().set("viewBox", (0, 0, WIDTH, HEIGHT))
         .add(path);
     for r in rects {
         document.append(r);
