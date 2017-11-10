@@ -56,6 +56,7 @@ impl Route {
     }
 
     fn to_string(&self) -> String {
+        //format!("AS{}<br/>{}", &self.asn, &self.prefix.to_string())
         format!("AS{}", &self.asn)
     }
 }
@@ -183,7 +184,7 @@ fn main() {
     for line in BufReader::new(
         File::open("ipv6_prefixes.txt").unwrap())
         .lines()
-            //.take(100) 
+            .take(100) 
             {
         let line = line.unwrap();
         let parts: Vec<&str> = line.split(' ').collect();//::<(&str,&str)>();
@@ -200,21 +201,15 @@ fn main() {
     }
 
 
-
-    //areas.sort(); //FIXME currently reading sorted input
-    
-    // initial aspect ratio
-    let init_ar: f64 = 1_f64 / (8.0/2.0);
+    // initial aspect ratio FIXME this doesn't affect anything, remove
+    let init_ar: f64 = 1_f64 / (8.0/1.0);
 
     let input_area_total = inputs.iter().fold(0.0, |mut s, i| { s += *i; s} );
-    //let norm_factor = (WIDTH * HEIGHT) / input_area_total;
     let norm_factor = (WIDTH * HEIGHT) / total_area as f64;
 
     let mut areas: Vec<Area> = Vec::new();
-    //for i in inputs {
-    //    areas.push(Area::new(i * norm_factor, init_ar, i.to_string()));
-    //}
 
+    //TODO can we order by prefix, so they appear closer in the plot?
     routes.sort_by(|a, b| b.size().cmp(&a.size()));
 
     for r in routes {
@@ -225,7 +220,7 @@ fn main() {
 
     let mut rows = Vec::new();
     //let (first_area, remaining_areas) = areas.split_first().unwrap();
-    let remaining_areas = areas.split_off(1); //.pop().unwrap();
+    let remaining_areas = areas.split_off(1);
     let first_area = areas.pop().unwrap();
     let (mut new_row_x, mut new_row_y) = (0.0, 0.0);
     rows.push(Row::new(new_row_x, new_row_y, true, first_area));
@@ -285,8 +280,8 @@ fn main() {
                 .set("stroke-width", border)
                 .set("stroke", "black")
                 .set("opacity", 0.5)
-                
-                //.set("data-id", area.id)
+                .set("data-prefix", area.route.prefix.to_string())
+                .set("title", area.route.to_string())
                 ;
             rects.push(rect);
             if area.w > 5.0 {
@@ -296,7 +291,8 @@ fn main() {
                     .set("font-family", "mono")
                     .set("font-size", format!("{}%", area.w))
                     .set("text-anchor", "middle");
-                    label.append(Tekst::new(area.id.clone()))
+                    label.append(Tekst::new(area.route.to_string()))
+                    //label.append(Tekst::new(area.route.prefix.to_string()))
                     ;
                 labels.push(label);
             }
@@ -317,6 +313,20 @@ fn main() {
     }
 
 
-    svg::save("image.svg", &document).unwrap();
+    svg::save("html/image.svg", &document).unwrap();
+    let mut raw_svg = String::new();
+    BufReader::new(
+        File::open("html/image.svg").unwrap()
+    ).read_to_string(&mut raw_svg).unwrap();
+
+    let mut template = String::new();
+    BufReader::new(
+        File::open("html/index.html.template").unwrap()
+    ).read_to_string(&mut template).unwrap();
+
+    let html = template.replace("__SVG__", &raw_svg);
+
+    let mut html_file = File::create("html/index.html").unwrap();
+    html_file.write_all(&html.as_bytes()).unwrap();
 
 }
