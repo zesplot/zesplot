@@ -1,13 +1,21 @@
 extern crate svg;
+extern crate ipaddress;
+extern crate num;
 
 use svg::*;
-use svg::node::element::{Path, Rectangle};
+use svg::node::Text as Tekst;
+use svg::node::element::{Path, Rectangle, Text};
 use svg::node::element::path::Data;
 
+use ipaddress::IPAddress;
+use ipaddress::prefix::Prefix;
+use num::cast::ToPrimitive;
+use num::PrimInt;
 
 use std::io::{BufReader};
 use std::io::prelude::*;
 use std::fs::File;
+use std::cmp;
 
 
 const WIDTH: f64 = 160.0;
@@ -21,22 +29,7 @@ struct Area {
     h: f64,
     surface: f64,
     id: String,
-}
-
-impl Area {
-    fn new(surface: f64, ratio: f64, id: String) -> Area {
-        let w = surface.powf(ratio);
-        let h = surface.powf(1.0 - ratio);
-        //println!("area::new {} * {}", w, h);
-        Area { x: 0.0, y: 0.0, w, h, surface, id }
-    }
-    fn get_ratio(&self) -> f64 {
-        if &self.h >= &self.w {
-            &self.w  / &self.h
-        } else {
-            &self.h / &self.w
-        }
-    }
+    route: Route,
 }
 
 struct Row {
@@ -47,6 +40,42 @@ struct Row {
     vertical: bool,
     areas: Vec<Area>,
 }
+
+struct Route {
+    prefix: IPAddress,
+    asn:    u32
+}
+
+impl Route {
+    fn size(&self) -> u64 {
+        //match self.prefix.prefix.size().to_u64() {
+        //    Some(n) => n,
+        //    None => {println!("size err for {}", self.to_string()); 0}
+        //}
+        2.pow(64 - self.prefix.prefix.num as u32)
+    }
+
+    fn to_string(&self) -> String {
+        format!("AS{}", &self.asn)
+    }
+}
+
+impl Area {
+    fn new(surface: f64, ratio: f64, id: String, route: Route) -> Area {
+        let w = surface.powf(ratio);
+        let h = surface.powf(1.0 - ratio);
+        //println!("area::new {} * {}", w, h);
+        Area { x: 0.0, y: 0.0, w, h, surface, id, route }
+    }
+    fn get_ratio(&self) -> f64 {
+        if &self.h >= &self.w {
+            &self.w  / &self.h
+        } else {
+            &self.h / &self.w
+        }
+    }
+}
+
 
 impl Row {
     fn new(x: f64, y: f64, vertical: bool, mut area: Area) -> Row {
@@ -142,22 +171,54 @@ impl Row {
 fn main() {
 
     let mut inputs: Vec<f64> = Vec::new();
+    let mut routes: Vec<Route> = Vec::new();
+    let mut total_area = 0_u64;
 
-    for line in BufReader::new(File::open("allrirs.txt").unwrap()).lines() {
-        //inputs.push(line.unwrap().parse().unwrap());
-        inputs.push(2_f64.powf(128_f64 - line.unwrap().parse::<f64>().unwrap()  ));
+//    for line in BufReader::new(File::open("allrirs.txt").unwrap()).lines() {
+//          inputs.push(
+//              2_f64.powf(128_f64 - line.unwrap().parse::<f64>().unwrap())
+//          );
+//    }
+
+    for line in BufReader::new(
+        File::open("ipv6_prefixes.txt").unwrap())
+        .lines()
+            //.take(100) 
+            {
+        let line = line.unwrap();
+        let parts: Vec<&str> = line.split(' ').collect();//::<(&str,&str)>();
+        let route = IPAddress::parse(parts[0]).unwrap();
+
+        match parts[1].parse::<u32>() {
+            Ok(asn) => {
+                let r = Route {prefix: route, asn};
+                total_area += r.size();
+                routes.push(r)
+            },
+            Err(e) => println!("Error in {}: {}", parts[1],  e)
+        }
     }
+
+
+
     //areas.sort(); //FIXME currently reading sorted input
     
     // initial aspect ratio
-    let init_ar: f64 = 1_f64 / (8.0/3.0);
+    let init_ar: f64 = 1_f64 / (8.0/2.0);
 
     let input_area_total = inputs.iter().fold(0.0, |mut s, i| { s += *i; s} );
-    let norm_factor = (WIDTH * HEIGHT) / input_area_total;
+    //let norm_factor = (WIDTH * HEIGHT) / input_area_total;
+    let norm_factor = (WIDTH * HEIGHT) / total_area as f64;
 
     let mut areas: Vec<Area> = Vec::new();
-    for i in inputs {
-        areas.push(Area::new(i * norm_factor, init_ar, i.to_string()));
+    //for i in inputs {
+    //    areas.push(Area::new(i * norm_factor, init_ar, i.to_string()));
+    //}
+
+    routes.sort_by(|a, b| b.size().cmp(&a.size()));
+
+    for r in routes {
+        areas.push(Area::new(r.size() as f64 * norm_factor, init_ar, r.to_string(), r  ));
     }
 
 
@@ -195,6 +256,7 @@ fn main() {
 
     println!(" --- drawing --- ");
     let mut rects: Vec<Rectangle> = Vec::new();
+    let mut labels: Vec<Text> = Vec::new();
 
     let colors = vec![  "#ff0000",
                         "#00ff00",
@@ -207,44 +269,51 @@ fn main() {
     for row in rows {
         //println!("new row: {}", direction);
         for area in row.areas {
+            if area.surface < 1.0 { break; }
             //println!("{},{} {} * {}", area.x, area.y, area.w, area.h);
+            let mut border = 0.0005 * area.surface;
+            if border > 0.4 {
+                border = 0.4;
+            }
+
             let rect = Rectangle::new()
                 .set("x", area.x)
                 .set("y", area.y)
                 .set("width", area.w)
                 .set("height", area.h)
-                //.set("fill", color)
                 .set("fill", colors[i % colors.len()])
-                .set("stroke-width", 0.0005 * area.surface)
+                .set("stroke-width", border)
                 .set("stroke", "black")
                 .set("opacity", 0.5)
-                //.set("opacity", (area.x * area.y) / 10000_f64)
                 
-                .set("data-id", area.id)
+                //.set("data-id", area.id)
                 ;
             rects.push(rect);
+            if area.w > 5.0 {
+                let mut label = Text::new()
+                    .set("x", area.x + area.w/2.0)
+                    .set("y", area.y + area.h/2.0)
+                    .set("font-family", "mono")
+                    .set("font-size", format!("{}%", area.w))
+                    .set("text-anchor", "middle");
+                    label.append(Tekst::new(area.id.clone()))
+                    ;
+                labels.push(label);
+            }
+
+
             i += 1;
         }
     }
 
-    let data = Data::new()
-        .move_to((0, 0))
-        .line_by((0, 100))
-        .line_by((100, 0))
-        .line_by((0, -100))
-        .close();
+    println!("created {} rects", i);
 
-    let path = Path::new()
-        .set("fill", "none")
-        .set("stroke", "black")
-        .set("stroke-width", 0.02)
-        .set("d", data);
-
-
-    let mut document = Document::new().set("viewBox", (0, 0, WIDTH, HEIGHT))
-        .add(path);
+    let mut document = Document::new().set("viewBox", (0, 0, WIDTH, HEIGHT));
     for r in rects {
         document.append(r);
+    }
+    for l in labels {
+        document.append(l);
     }
 
 
