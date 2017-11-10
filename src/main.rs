@@ -1,21 +1,21 @@
+#![feature(drain_filter)]
+
 extern crate svg;
-extern crate ipaddress;
+extern crate ipnetwork;
 extern crate num;
 
 use svg::*;
 use svg::node::Text as Tekst;
-use svg::node::element::{Path, Rectangle, Text};
-use svg::node::element::path::Data;
+use svg::node::element::{Rectangle, Text};
 
-use ipaddress::IPAddress;
-use ipaddress::prefix::Prefix;
-use num::cast::ToPrimitive;
+use ipnetwork::Ipv6Network;
+use std::net::Ipv6Addr;
 use num::PrimInt;
 
 use std::io::{BufReader};
 use std::io::prelude::*;
 use std::fs::File;
-use std::cmp;
+//use std::cmp;
 
 
 const WIDTH: f64 = 160.0;
@@ -28,7 +28,6 @@ struct Area {
     w: f64,
     h: f64,
     surface: f64,
-    id: String,
     route: Route,
 }
 
@@ -42,17 +41,15 @@ struct Row {
 }
 
 struct Route {
-    prefix: IPAddress,
-    asn:    u32
+    prefix: Ipv6Network,
+    asn:    u32,
+    hits:   u32,
 }
 
 impl Route {
     fn size(&self) -> u64 {
-        //match self.prefix.prefix.size().to_u64() {
-        //    Some(n) => n,
-        //    None => {println!("size err for {}", self.to_string()); 0}
-        //}
-        2.pow(64 - self.prefix.prefix.num as u32)
+        //2.pow(64 - self.prefix.prefix.num as u32)
+        2.pow(64 - self.prefix.prefix() as u32)
     }
 
     fn to_string(&self) -> String {
@@ -62,11 +59,11 @@ impl Route {
 }
 
 impl Area {
-    fn new(surface: f64, ratio: f64, id: String, route: Route) -> Area {
+    fn new(surface: f64, ratio: f64, route: Route) -> Area {
         let w = surface.powf(ratio);
         let h = surface.powf(1.0 - ratio);
         //println!("area::new {} * {}", w, h);
-        Area { x: 0.0, y: 0.0, w, h, surface, id, route }
+        Area { x: 0.0, y: 0.0, w, h, surface, route }
     }
     fn get_ratio(&self) -> f64 {
         if &self.h >= &self.w {
@@ -169,30 +166,51 @@ impl Row {
 
 }
 
+fn color(i: u32) -> String  {
+    if i == 0 {
+        "#ff0000".to_string()
+    } else {
+        format!("#00{:02x}{:02x}", 0xFF-i, i)
+    }
+}
+
 fn main() {
 
-    let mut inputs: Vec<f64> = Vec::new();
+    let mut dots: Vec<Ipv6Addr> = Vec::new();
+    for line in BufReader::new(
+        File::open("ipv6_hits.txt").unwrap()).lines()
+        {
+            let line = line.unwrap();
+            dots.push(line.parse().unwrap());
+        }
+    dots.sort();
+
+
+
     let mut routes: Vec<Route> = Vec::new();
     let mut total_area = 0_u64;
 
-//    for line in BufReader::new(File::open("allrirs.txt").unwrap()).lines() {
-//          inputs.push(
-//              2_f64.powf(128_f64 - line.unwrap().parse::<f64>().unwrap())
-//          );
-//    }
+    // TODO this input is generated a la:
+    // ./bgpdump -M latest-bview.gz | ack "::/" cut -d'|' -f 6,7 --output-delimiter=" " | awk '{print $1,$NF}' |sort -u
+    // now, this still includes 6to4 2002::/16 announcements
+    // should we filter these out?
 
     for line in BufReader::new(
         File::open("ipv6_prefixes.txt").unwrap())
         .lines()
-            .take(100) 
+            //.take(1000) 
             {
         let line = line.unwrap();
         let parts: Vec<&str> = line.split(' ').collect();//::<(&str,&str)>();
-        let route = IPAddress::parse(parts[0]).unwrap();
+        //let route = IPAddress::parse(parts[0]).unwrap();
+        let route: Ipv6Network = parts[0].parse().unwrap();
 
         match parts[1].parse::<u32>() {
             Ok(asn) => {
-                let r = Route {prefix: route, asn};
+                let _h: Vec<Ipv6Addr> = dots.drain_filter(|d| route.contains(*d)).collect();
+                //let hits = _v.len();
+                //println!("got {} hits for {}", hits, asn);
+                let r = Route {prefix: route, asn, hits: _h.len() as u32};
                 total_area += r.size();
                 routes.push(r)
             },
@@ -204,7 +222,6 @@ fn main() {
     // initial aspect ratio FIXME this doesn't affect anything, remove
     let init_ar: f64 = 1_f64 / (8.0/1.0);
 
-    let input_area_total = inputs.iter().fold(0.0, |mut s, i| { s += *i; s} );
     let norm_factor = (WIDTH * HEIGHT) / total_area as f64;
 
     let mut areas: Vec<Area> = Vec::new();
@@ -212,8 +229,11 @@ fn main() {
     //TODO can we order by prefix, so they appear closer in the plot?
     routes.sort_by(|a, b| b.size().cmp(&a.size()));
 
+
+
+
     for r in routes {
-        areas.push(Area::new(r.size() as f64 * norm_factor, init_ar, r.to_string(), r  ));
+        areas.push(Area::new(r.size() as f64 * norm_factor, init_ar, r  ));
     }
 
 
@@ -249,11 +269,13 @@ fn main() {
         i = i + 1;
     }
 
+
     println!(" --- drawing --- ");
     let mut rects: Vec<Rectangle> = Vec::new();
     let mut labels: Vec<Text> = Vec::new();
 
-    let colors = vec![  "#ff0000",
+    // TODO remove?
+    let _colors = vec![  "#ff0000",
                         "#00ff00",
                         "#0000ff",
                         "#ffff00",
@@ -264,23 +286,27 @@ fn main() {
     for row in rows {
         //println!("new row: {}", direction);
         for area in row.areas {
-            if area.surface < 1.0 { break; }
+            if area.surface < 2.0 { break; }
             //println!("{},{} {} * {}", area.x, area.y, area.w, area.h);
             let mut border = 0.0005 * area.surface;
             if border > 0.4 {
                 border = 0.4;
             }
+            //let _v: Vec<Ipv6Addr> = dots.drain_filter(|d| area.route.prefix.contains(*d)).collect();
+            //let hits = _v.len();
 
             let rect = Rectangle::new()
                 .set("x", area.x)
                 .set("y", area.y)
                 .set("width", area.w)
                 .set("height", area.h)
-                .set("fill", colors[i % colors.len()])
+                //.set("fill", colors[hits % colors.len()]) // FIXME this is bullshit, we need some kind of normalized color scale
+                .set("fill", color(area.route.hits)) // FIXME this is bullshit, we need some kind of normalized color scale
                 .set("stroke-width", border)
                 .set("stroke", "black")
                 .set("opacity", 0.5)
                 .set("data-prefix", area.route.prefix.to_string())
+                .set("data-hits", area.route.hits.to_string())
                 .set("title", area.route.to_string())
                 ;
             rects.push(rect);

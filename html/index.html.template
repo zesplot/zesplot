@@ -14,7 +14,11 @@ __SVG__
 		//	return $(this).attr('title') + $(this).data('prefix');
 		//});
 		$.data(this, 'powertip',
-			$(this).attr('title') + "<br/>" + $(this).data('prefix')
+			$(this).attr('title') 
+			+ "<br/>" 
+			+ $(this).data('prefix')
+			+ "<br/>" 
+			+ "hits: " + $(this).data('hits')
 		);
 	});
 	$('rect').powerTip({

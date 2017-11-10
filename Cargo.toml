@@ -5,5 +5,5 @@ authors = ["Luuk Hendriks <mail@luukhendriks.eu>"]
 
 [dependencies]
 svg = "*"
-ipaddress = "*"
+ipnetwork = "*"
 num = "*"
