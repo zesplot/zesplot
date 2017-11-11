@@ -1,9 +1,10 @@
 extern crate svg;
 extern crate ipnetwork;
 extern crate num;
+#[macro_use]
 extern crate clap;
 
-//TODO clap for cli params
+use clap::{Arg, App};
 
 use svg::*;
 use svg::node::Text as Tekst;
@@ -20,6 +21,7 @@ use std::fs::File;
 
 const WIDTH: f64 = 160.0;
 const HEIGHT: f64 = 100.0;
+const PLOT_LIMIT: u64 = 2000;
 
 //#[derive (Copy, Clone)]
 struct Area {
@@ -40,15 +42,29 @@ struct Row {
     areas: Vec<Area>,
 }
 
+//TODO make hits a Vec<Ipv6Addr>, use .len() to determine colour
+// TODO: double check, did color of as5400 suddenly change?
 struct Route {
     prefix: Ipv6Network,
     asn:    u32,
-    hits:   u32,
+    //hits:   u32,
+    hits: Vec<Ipv6Addr>,
 }
 
 impl Route {
     fn size(&self) -> u64 {
-        2.pow(64 - self.prefix.prefix() as u32)
+        //TODO this is.. arbitrary
+        // we might want to use u128 from nightly?
+        // still, some 'scaling' like this might be giving prettier output
+        if self.prefix.prefix() < 64 {
+            //println!("size 64 - {}", self.prefix.prefix());
+            2.pow(64 - self.prefix.prefix() as u32)
+        } else {
+            // FIXME lets try something small for anything >/64
+            //println!("size 128 - {}", self.prefix.prefix());
+            //2.pow(128 - 1 - self.prefix.prefix() as u32)
+            2.pow(2)
+        }
     }
 
     fn to_string(&self) -> String {
@@ -176,11 +192,42 @@ fn color(i: u32, max: u32) -> String  {
 
 fn main() {
 
+    let matches = App::new("zesmap")
+                        .version("0.1")
+                        .author("drk")
+                        .arg(Arg::with_name("prefix-file")
+                             .short("p")
+                             .long("prefixes")
+                             .help("Prefixes to map")
+                             .takes_value(true)
+                             .required(true)
+                        )
+                        .arg(Arg::with_name("address-file")
+                             .short("a")
+                             .long("addresses")
+                             .help("IPv6 addresses to plot on map")
+                             .takes_value(true)
+                             .required(true)
+                        )
+                        .arg(Arg::with_name("filter-empty-prefixes")
+                             .short("f")
+                             .long("filter")
+                             .help("Filter out empty prefixes, only plotting prefixes containing addresses from the --addressess")
+                        )
+                        .arg(Arg::with_name("plot-limit")
+                             .short("l")
+                             .long("limit")
+                             .help(&format!("Limits number of areas plotted. 0 for unlimited. Default {}", PLOT_LIMIT))
+                             .takes_value(true)
+                        )
+                        .get_matches();
+
     eprintln!("-- reading input files");
 
     let mut dots: Vec<Ipv6Addr> = Vec::new();
     for line in BufReader::new(
-        File::open("ipv6_hits.txt").unwrap()).lines()
+        //File::open("ipv6_hits.txt").unwrap()).lines()
+        File::open(matches.value_of("address-file").unwrap()).unwrap()).lines()
         {
             let line = line.unwrap();
             dots.push(line.parse().unwrap());
@@ -196,7 +243,8 @@ fn main() {
     // should we filter these out?
 
     for line in BufReader::new(
-        File::open("ipv6_prefixes.txt").unwrap())
+        //File::open("ipv6_prefixes.txt").unwrap())
+        File::open(matches.value_of("prefix-file").unwrap()).unwrap())
         .lines()
             //.take(1000) 
             {
@@ -207,7 +255,7 @@ fn main() {
 
         match parts[1].parse::<u32>() {
             Ok(asn) => {
-                let r = Route {prefix: route, asn, hits: 0};
+                let r = Route {prefix: route, asn, hits: Vec::new()};
                 total_area += r.size();
                 routes.push(r)
             },
@@ -229,6 +277,7 @@ fn main() {
         for (i, d) in dots[start_i..].iter().enumerate() {
             if r.prefix.contains(*d) {
                 hits += 1;
+                r.hits.push(*d);
             } else if Ipv6Network::new(*d, 128).unwrap() > r.prefix {
                 start_i = start_i + i - 1;
                 break;
@@ -236,7 +285,7 @@ fn main() {
              
         }
 
-        r.hits = hits;
+        //r.hits = hits;
         if hits > max_hits {
             max_hits = hits;
         }
@@ -244,10 +293,11 @@ fn main() {
 
     eprintln!("-- fitting areas in plot");
 
-    let hide_empty_areas = true; // <-- TODO this should be a cli flag
+    //let hide_empty_areas = true; // <-- TODO this should be a cli flag
     println!("pre: {} routes, total size {}", routes.len(), total_area);
-    if hide_empty_areas {
-        routes.retain(|r| r.hits > 0);
+    //if hide_empty_areas {
+    if matches.is_present("filter-empty-prefixes") {
+        routes.retain(|r| r.hits.len() > 0);
     }
     total_area = routes.iter().fold(0, |mut s, r|{s += r.size(); s});
     println!("post: {} routes, total size {}", routes.len(), total_area);
@@ -302,12 +352,20 @@ fn main() {
     //let mut rects: Vec<Rectangle> = Vec::new();
     //let mut labels: Vec<Text> = Vec::new();
     let mut groups: Vec<Group> = Vec::new();
+    let mut areas_plotted: u64 = 0;
 
-    let mut i = 0;
+    //let plot_limit = matches.value_of("plot-limit").unwrap_or(PLOT_LIMIT);
+    let plot_limit = value_t!(matches, "plot-limit", u64).unwrap_or(PLOT_LIMIT);
+    println!("plot_limit: {}", plot_limit);
     for row in rows {
         //println!("new row: {}", direction);
+        
+        if plot_limit > 0 && areas_plotted >= plot_limit {
+            break;
+        }
+
         for area in row.areas {
-            if area.surface < 0.5 { break; } // TODO make this a cli param
+            //if area.surface < 0.5 { break; } // TODO make this a cli param
             let mut border = 0.0005 * area.surface;
             if border > 0.4 {
                 border = 0.4;
@@ -319,7 +377,7 @@ fn main() {
                 .set("y", area.y)
                 .set("width", area.w)
                 .set("height", area.h)
-                .set("fill", color(area.route.hits, max_hits)) 
+                .set("fill", color(area.route.hits.len() as u32, max_hits)) 
                 .set("stroke-width", border)
                 .set("stroke", "black")
                 .set("opacity", 1.0)
@@ -327,7 +385,7 @@ fn main() {
             let mut group = Group::new()
                 .set("data-asn", area.route.asn.to_string())
                 .set("data-prefix", area.route.prefix.to_string())
-                .set("data-hits", area.route.hits.to_string())
+                .set("data-hits", area.route.hits.len().to_string())
                 ;
             group.append(rect);
             if area.w > 0.5 {
@@ -346,11 +404,11 @@ fn main() {
 
 
 
-            i += 1;
+            areas_plotted += 1;
         }
     }
 
-    eprintln!("  -- created {} rects", i);
+    eprintln!("  -- created {} rects", areas_plotted);
 
     let mut document = Document::new()
                         .set("viewBox", (0, 0, WIDTH, HEIGHT))
