@@ -1,8 +1,8 @@
-#![feature(drain_filter)]
-
 extern crate svg;
 extern crate ipnetwork;
 extern crate num;
+
+//TODO clap for cli params
 
 use svg::*;
 use svg::node::Text as Tekst;
@@ -15,7 +15,6 @@ use num::PrimInt;
 use std::io::{BufReader};
 use std::io::prelude::*;
 use std::fs::File;
-//use std::cmp;
 
 
 const WIDTH: f64 = 160.0;
@@ -48,12 +47,10 @@ struct Route {
 
 impl Route {
     fn size(&self) -> u64 {
-        //2.pow(64 - self.prefix.prefix.num as u32)
         2.pow(64 - self.prefix.prefix() as u32)
     }
 
     fn to_string(&self) -> String {
-        //format!("AS{}<br/>{}", &self.asn, &self.prefix.to_string())
         format!("AS{}", &self.asn)
     }
 }
@@ -62,7 +59,6 @@ impl Area {
     fn new(surface: f64, ratio: f64, route: Route) -> Area {
         let w = surface.powf(ratio);
         let h = surface.powf(1.0 - ratio);
-        //println!("area::new {} * {}", w, h);
         Area { x: 0.0, y: 0.0, w, h, surface, route }
     }
     fn get_ratio(&self) -> f64 {
@@ -77,19 +73,15 @@ impl Area {
 
 impl Row {
     fn new(x: f64, y: f64, vertical: bool, mut area: Area) -> Row {
-        //println!("Row::new at {},{}", x, y);
         let max_h = HEIGHT - y;
         let max_w = WIDTH - x;
-        //if area.h > max_h && max_h > 0.0 {
         if vertical {
             area.h = max_h;
             area.w = area.surface / area.h;
-        //} else if area.w > max_w {
         } else {
             area.w = max_w;
             area.h = area.surface / area.w;
         }
-        //println!("  {} * {}", area.w, area.h);
         Row {x, y, w: area.w, h: area.h, vertical, areas:vec![area]}
     }
 
@@ -106,7 +98,6 @@ impl Row {
 
 
     fn reflow(&mut self) -> () {
-        //println!("reflow:");
         if self.vertical {
             let new_w = self.area() / self.h;
             self.w = new_w;
@@ -117,7 +108,6 @@ impl Row {
                 a.x = self.x;
                 a.y = cur_y;
                 cur_y += a.h;
-                //println!("  area {} set cur_y to {}", a.surface, cur_y);
             }
         } else {
             let new_h = self.area() / self.w;
@@ -129,7 +119,6 @@ impl Row {
                 a.y = self.y;
                 a.x = cur_x;
                 cur_x += a.w;
-                //println!("  area {} set cur_y to {}", a.surface, cur_x);
             }
         }
     }
@@ -166,15 +155,27 @@ impl Row {
 
 }
 
-fn color(i: u32) -> String  {
+fn _color(i: u32) -> String  {
     if i == 0 {
-        "#ff0000".to_string()
+        "#eeeeee".to_string()
     } else {
         format!("#00{:02x}{:02x}", 0xFF-i, i)
     }
 }
 
+fn color(i: u32, max: u32) -> String  {
+    if i == 0 {
+        "#eeeeee".to_string()
+    } else {
+        let norm_factor = (1.0 / ((max as f32).log2() / 255.0)) as f32;
+        let v = (norm_factor *(i as f32).log2()) as u32;
+        format!("#{:02x}00{:02x}", v, 0xFF-v)
+    }
+}
+
 fn main() {
+
+    eprintln!("-- reading input files");
 
     let mut dots: Vec<Ipv6Addr> = Vec::new();
     for line in BufReader::new(
@@ -184,8 +185,6 @@ fn main() {
             dots.push(line.parse().unwrap());
         }
     dots.sort();
-
-
 
     let mut routes: Vec<Route> = Vec::new();
     let mut total_area = 0_u64;
@@ -207,10 +206,7 @@ fn main() {
 
         match parts[1].parse::<u32>() {
             Ok(asn) => {
-                let _h: Vec<Ipv6Addr> = dots.drain_filter(|d| route.contains(*d)).collect();
-                //let hits = _v.len();
-                //println!("got {} hits for {}", hits, asn);
-                let r = Route {prefix: route, asn, hits: _h.len() as u32};
+                let r = Route {prefix: route, asn, hits: 0};
                 total_area += r.size();
                 routes.push(r)
             },
@@ -218,6 +214,36 @@ fn main() {
         }
     }
 
+    eprintln!("-- matching /128s with prefixes");
+
+    routes.sort_by(|a, b| a.prefix.cmp(&b.prefix));
+
+    let mut start_i = 0;
+    let mut max_hits = 0;
+    for r in &mut routes {
+        let mut hits = 0;
+        for (i, d) in dots[start_i..].iter().enumerate() {
+            if r.prefix.contains(*d) {
+                hits += 1;
+            } else if Ipv6Network::new(*d, 128).unwrap() > r.prefix {
+                start_i = start_i + i - 1;
+                break;
+            }
+             
+        }
+
+        r.hits = hits;
+        if hits > max_hits {
+            max_hits = hits;
+        }
+    }
+
+    eprintln!("-- fitting areas in plot");
+
+    // TODO: filter areas that have >0 matches
+    // should be a cli flag eventually
+    // - total_area should be adapted after filtering
+    // - perhaps other things as well?
 
     // initial aspect ratio FIXME this doesn't affect anything, remove
     let init_ar: f64 = 1_f64 / (8.0/1.0);
@@ -226,11 +252,7 @@ fn main() {
 
     let mut areas: Vec<Area> = Vec::new();
 
-    //TODO can we order by prefix, so they appear closer in the plot?
     routes.sort_by(|a, b| b.size().cmp(&a.size()));
-
-
-
 
     for r in routes {
         areas.push(Area::new(r.size() as f64 * norm_factor, init_ar, r  ));
@@ -254,13 +276,12 @@ fn main() {
             let cur_row_h = rows.last().unwrap().h;
             let cur_row_vertical = rows.last().unwrap().vertical;
             if cur_row_vertical {
+                // create new horizontal row
                 new_row_x += cur_row_w;
-                //println!("new horizontal row at {},{}", new_row_x, new_row_y);
                 rows.push(Row::new(new_row_x, new_row_y, false, area));
             } else {
-                new_row_y += cur_row_h;
                 // create new vertical row
-                //println!("new vertical row at {},{}", new_row_x, new_row_y);
+                new_row_y += cur_row_h;
                 rows.push(Row::new(new_row_x, new_row_y, true, area));
             }
             rows.last_mut().unwrap().reflow();
@@ -270,7 +291,7 @@ fn main() {
     }
 
 
-    println!(" --- drawing --- ");
+    println!("-- creating svg");
     let mut rects: Vec<Rectangle> = Vec::new();
     let mut labels: Vec<Text> = Vec::new();
 
@@ -286,25 +307,21 @@ fn main() {
     for row in rows {
         //println!("new row: {}", direction);
         for area in row.areas {
-            if area.surface < 2.0 { break; }
-            //println!("{},{} {} * {}", area.x, area.y, area.w, area.h);
+            //if area.surface < 1.0 { break; } // TODO make this a cli param
             let mut border = 0.0005 * area.surface;
             if border > 0.4 {
                 border = 0.4;
             }
-            //let _v: Vec<Ipv6Addr> = dots.drain_filter(|d| area.route.prefix.contains(*d)).collect();
-            //let hits = _v.len();
 
             let rect = Rectangle::new()
                 .set("x", area.x)
                 .set("y", area.y)
                 .set("width", area.w)
                 .set("height", area.h)
-                //.set("fill", colors[hits % colors.len()]) // FIXME this is bullshit, we need some kind of normalized color scale
-                .set("fill", color(area.route.hits)) // FIXME this is bullshit, we need some kind of normalized color scale
+                .set("fill", color(area.route.hits, max_hits)) 
                 .set("stroke-width", border)
                 .set("stroke", "black")
-                .set("opacity", 0.5)
+                .set("opacity", 1.0)
                 .set("data-prefix", area.route.prefix.to_string())
                 .set("data-hits", area.route.hits.to_string())
                 .set("title", area.route.to_string())
@@ -318,7 +335,6 @@ fn main() {
                     .set("font-size", format!("{}%", area.w))
                     .set("text-anchor", "middle");
                     label.append(Tekst::new(area.route.to_string()))
-                    //label.append(Tekst::new(area.route.prefix.to_string()))
                     ;
                 labels.push(label);
             }
@@ -328,7 +344,7 @@ fn main() {
         }
     }
 
-    println!("created {} rects", i);
+    eprintln!("  -- created {} rects", i);
 
     let mut document = Document::new().set("viewBox", (0, 0, WIDTH, HEIGHT));
     for r in rects {
@@ -338,6 +354,7 @@ fn main() {
         document.append(l);
     }
 
+    eprintln!("-- creating output files");
 
     svg::save("html/image.svg", &document).unwrap();
     let mut raw_svg = String::new();
@@ -354,5 +371,7 @@ fn main() {
 
     let mut html_file = File::create("html/index.html").unwrap();
     html_file.write_all(&html.as_bytes()).unwrap();
+
+    eprintln!("-- done!");
 
 }
