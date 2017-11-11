@@ -241,10 +241,13 @@ fn main() {
 
     eprintln!("-- fitting areas in plot");
 
-    // TODO: filter areas that have >0 matches
-    // should be a cli flag eventually
-    // - total_area should be adapted after filtering
-    // - perhaps other things as well?
+    let hide_empty_areas = true; // <-- TODO this should be a cli flag
+    println!("pre: {} routes, total size {}", routes.len(), total_area);
+    if hide_empty_areas {
+        routes.retain(|r| r.hits > 0);
+    }
+    total_area = routes.iter().fold(0, |mut s, r|{s += r.size(); s});
+    println!("post: {} routes, total size {}", routes.len(), total_area);
 
     // initial aspect ratio FIXME this doesn't affect anything, remove
     let init_ar: f64 = 1_f64 / (8.0/1.0);
@@ -296,19 +299,11 @@ fn main() {
     let mut rects: Vec<Rectangle> = Vec::new();
     let mut labels: Vec<Text> = Vec::new();
 
-    // TODO remove?
-    let _colors = vec![  "#ff0000",
-                        "#00ff00",
-                        "#0000ff",
-                        "#ffff00",
-                        "#00ffff",
-                        //"#ff00ff",
-                        ];
     let mut i = 0;
     for row in rows {
         //println!("new row: {}", direction);
         for area in row.areas {
-            if area.surface < 0.5 { break; } // TODO make this a cli param
+            //if area.surface < 0.5 { break; } // TODO make this a cli param
             let mut border = 0.0005 * area.surface;
             if border > 0.4 {
                 border = 0.4;

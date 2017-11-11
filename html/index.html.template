@@ -29,11 +29,7 @@ __SVG__
 
 
 	svgPanZoom('#treeplot', {
-		fit: true,
-	
-	
-	
-	
+		controlIconsEnabled: true,
 	});
 </script>
 
