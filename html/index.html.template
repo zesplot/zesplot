@@ -11,25 +11,26 @@ __SVG__
 </div>
 
 <script type="text/javascript">
-	$('rect').each(function() {
+	$('g').each(function() {
 		//$.data('powertip', function() {
 		//	return $(this).attr('title') + $(this).data('prefix');
 		//});
 		$.data(this, 'powertip',
-			$(this).attr('title') 
+			  "AS" + $(this).data('asn') 
 			+ "<br/>" 
 			+ $(this).data('prefix')
 			+ "<br/>" 
 			+ "hits: " + $(this).data('hits')
 		);
 	});
-	$('rect').powerTip({
+	$('g').powerTip({
 		followMouse: true
 	});
 
 
 	svgPanZoom('#treeplot', {
 		controlIconsEnabled: true,
+		maxZoom: 15
 	});
 </script>
 

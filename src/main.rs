@@ -7,7 +7,7 @@ extern crate clap;
 
 use svg::*;
 use svg::node::Text as Tekst;
-use svg::node::element::{Rectangle, Text};
+use svg::node::element::{Rectangle, Text, Group};
 
 use ipnetwork::Ipv6Network;
 use std::net::Ipv6Addr;
@@ -296,18 +296,20 @@ fn main() {
 
 
     println!("-- creating svg");
-    let mut rects: Vec<Rectangle> = Vec::new();
-    let mut labels: Vec<Text> = Vec::new();
+    //let mut rects: Vec<Rectangle> = Vec::new();
+    //let mut labels: Vec<Text> = Vec::new();
+    let mut groups: Vec<Group> = Vec::new();
 
     let mut i = 0;
     for row in rows {
         //println!("new row: {}", direction);
         for area in row.areas {
-            //if area.surface < 0.5 { break; } // TODO make this a cli param
+            if area.surface < 0.5 { break; } // TODO make this a cli param
             let mut border = 0.0005 * area.surface;
             if border > 0.4 {
                 border = 0.4;
             }
+
 
             let rect = Rectangle::new()
                 .set("x", area.x)
@@ -318,12 +320,14 @@ fn main() {
                 .set("stroke-width", border)
                 .set("stroke", "black")
                 .set("opacity", 1.0)
+                ;
+            let mut group = Group::new()
+                .set("data-asn", area.route.asn.to_string())
                 .set("data-prefix", area.route.prefix.to_string())
                 .set("data-hits", area.route.hits.to_string())
-                .set("title", area.route.to_string())
                 ;
-            rects.push(rect);
-            if area.w > 5.0 {
+            group.append(rect);
+            if area.w > 0.5 {
                 let mut label = Text::new()
                     .set("x", area.x + area.w/2.0)
                     .set("y", area.y + area.h/2.0)
@@ -332,8 +336,11 @@ fn main() {
                     .set("text-anchor", "middle");
                     label.append(Tekst::new(area.route.to_string()))
                     ;
-                labels.push(label);
+                //labels.push(label);
+                group.append(label);
             }
+            groups.push(group);
+
 
 
             i += 1;
@@ -346,11 +353,14 @@ fn main() {
                         .set("viewBox", (0, 0, WIDTH, HEIGHT))
                         .set("id", "treeplot")
                         ;
-    for r in rects {
-        document.append(r);
-    }
-    for l in labels {
-        document.append(l);
+//    for r in rects {
+//        document.append(r);
+//    }
+//    for l in labels {
+//        document.append(l);
+//    }
+    for g in groups {
+        document.append(g);
     }
 
     eprintln!("-- creating output files");
