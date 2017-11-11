@@ -1,6 +1,7 @@
 extern crate svg;
 extern crate ipnetwork;
 extern crate num;
+extern crate clap;
 
 //TODO clap for cli params
 
@@ -307,7 +308,7 @@ fn main() {
     for row in rows {
         //println!("new row: {}", direction);
         for area in row.areas {
-            //if area.surface < 1.0 { break; } // TODO make this a cli param
+            if area.surface < 0.5 { break; } // TODO make this a cli param
             let mut border = 0.0005 * area.surface;
             if border > 0.4 {
                 border = 0.4;
@@ -346,7 +347,10 @@ fn main() {
 
     eprintln!("  -- created {} rects", i);
 
-    let mut document = Document::new().set("viewBox", (0, 0, WIDTH, HEIGHT));
+    let mut document = Document::new()
+                        .set("viewBox", (0, 0, WIDTH, HEIGHT))
+                        .set("id", "treeplot")
+                        ;
     for r in rects {
         document.append(r);
     }

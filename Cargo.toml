@@ -7,3 +7,4 @@ authors = ["Luuk Hendriks <mail@luukhendriks.eu>"]
 svg = "*"
 ipnetwork = "*"
 num = "*"
+clap = "*"

@@ -1,12 +1,14 @@
 <head>
 	<script type="text/javascript" src="jquery-3.2.1.min.js"></script>
 	<script type="text/javascript" src="jquery.powertip.min.js"></script>
+	<script type="text/javascript" src="svg-pan-zoom.min.js"></script>
 	<link rel="stylesheet" type="text/css" href="jquery.powertip.css"/>
+	<link rel="stylesheet" type="text/css" href="zesmap.css"/>
 </head>
 
-
+<div>
 __SVG__
-
+</div>
 
 <script type="text/javascript">
 	$('rect').each(function() {
@@ -23,6 +25,15 @@ __SVG__
 	});
 	$('rect').powerTip({
 		followMouse: true
+	});
+
+
+	svgPanZoom('#treeplot', {
+		fit: true,
+	
+	
+	
+	
 	});
 </script>
 
