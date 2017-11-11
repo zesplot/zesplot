@@ -216,6 +216,9 @@ fn main() {
     }
 
     eprintln!("-- matching /128s with prefixes");
+    //TODO: add the /128s to the route, so we can plot actual dots later on
+    // interesting to see patterns
+    // challenge: how to go from /128 to (x,y) within a rect?
 
     routes.sort_by(|a, b| a.prefix.cmp(&b.prefix));
 
