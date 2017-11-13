@@ -398,7 +398,7 @@ fn main() {
             
             for h in area.route.hits.iter().take(10) {
                 println!("plotting {}", h);
-                let l = u128::from(h) - first_ip;
+                let l = u128::from(*h) - first_ip;
 
                 g_hits.append(Rectangle::new()
                               //.set("x", area.x + 
