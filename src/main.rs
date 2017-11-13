@@ -1,8 +1,9 @@
+#![feature(i128_type)]
+
 extern crate svg;
 extern crate ipnetwork;
 extern crate num;
-#[macro_use]
-extern crate clap;
+#[macro_use] extern crate clap;
 
 use clap::{Arg, App};
 
@@ -42,7 +43,6 @@ struct Row {
     areas: Vec<Area>,
 }
 
-//TODO make hits a Vec<Ipv6Addr>, use .len() to determine colour
 // TODO: double check, did color of as5400 suddenly change?
 struct Route {
     prefix: Ipv6Network,
@@ -365,12 +365,16 @@ fn main() {
         }
 
         for area in row.areas {
-            //if area.surface < 0.5 { break; } // TODO make this a cli param
+            let mut group = Group::new()
+                .set("data-asn", area.route.asn.to_string())
+                .set("data-prefix", area.route.prefix.to_string())
+                .set("data-hits", area.route.hits.len().to_string())
+                ;
+
             let mut border = 0.0005 * area.surface;
             if border > 0.4 {
                 border = 0.4;
             }
-
 
             let rect = Rectangle::new()
                 .set("x", area.x)
@@ -382,12 +386,28 @@ fn main() {
                 .set("stroke", "black")
                 .set("opacity", 1.0)
                 ;
-            let mut group = Group::new()
-                .set("data-asn", area.route.asn.to_string())
-                .set("data-prefix", area.route.prefix.to_string())
-                .set("data-hits", area.route.hits.len().to_string())
-                ;
             group.append(rect);
+
+            let mut g_hits = Group::new(); 
+            let first_ip = u128::from(area.route.prefix.iter().next().unwrap());
+            let last_ip = first_ip + area.route.prefix.size();
+            //println!("{} through {}", first_ip, last_ip);
+            let prefix_range = last_ip - first_ip;
+            let u = area.surface as u128 / area.route.prefix.size(); 
+
+            
+            for h in area.route.hits.iter().take(10) {
+                println!("plotting {}", h);
+                let l = u128::from(h) - first_ip;
+
+                g_hits.append(Rectangle::new()
+                              //.set("x", area.x + 
+                              
+                              );
+            }
+            
+
+
             if area.w > 0.5 {
                 let mut label = Text::new()
                     .set("x", area.x + area.w/2.0)

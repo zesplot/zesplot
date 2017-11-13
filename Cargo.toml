@@ -5,6 +5,6 @@ authors = ["Luuk Hendriks <mail@luukhendriks.eu>"]
 
 [dependencies]
 svg = "*"
-ipnetwork = "*"
+ipnetwork = { version = "*", features = ["ipv6-iterator", "ipv6-methods"] }
 num = "*"
 clap = "*"
