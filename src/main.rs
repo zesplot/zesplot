@@ -264,11 +264,10 @@ fn main() {
     }
 
     eprintln!("-- matching /128s with prefixes");
-    //TODO: add the /128s to the route, so we can plot actual dots later on
-    // interesting to see patterns
-    // challenge: how to go from /128 to (x,y) within a rect?
 
-    routes.sort_by(|a, b| a.prefix.cmp(&b.prefix));
+    // We need to sort both by prefix as by size
+    // so addresses are matched to the most-specific prefix
+    routes.sort_by(|a, b| a.prefix.cmp(&b.prefix).then(a.size().cmp(&b.size()).reverse()) );
 
     let mut start_i = 0;
     let mut max_hits = 0;
@@ -292,15 +291,13 @@ fn main() {
     }
 
     eprintln!("-- fitting areas in plot");
-
-    //let hide_empty_areas = true; // <-- TODO this should be a cli flag
     println!("pre: {} routes, total size {}", routes.len(), total_area);
-    //if hide_empty_areas {
+
     if matches.is_present("filter-empty-prefixes") {
         routes.retain(|r| r.hits.len() > 0);
     }
     total_area = routes.iter().fold(0, |mut s, r|{s += r.size(); s});
-    println!("post: {} routes, total size {}", routes.len(), total_area);
+    eprintln!("post: {} routes, total size {}", routes.len(), total_area);
 
     // initial aspect ratio FIXME this doesn't affect anything, remove
     let init_ar: f64 = 1_f64 / (8.0/1.0);
@@ -309,7 +306,8 @@ fn main() {
 
     let mut areas: Vec<Area> = Vec::new();
 
-    routes.sort_by(|a, b| b.size().cmp(&a.size()));
+    // sort by both size and ASN, so ASs are grouped in the final plot
+    routes.sort_by(|a, b| b.size().cmp(&a.size()).then(a.asn.cmp(&b.asn))  );
 
     for r in routes {
         areas.push(Area::new(r.size() as f64 * norm_factor, init_ar, r  ));
@@ -397,7 +395,7 @@ fn main() {
 
             
             for h in area.route.hits.iter().take(10) {
-                println!("plotting {}", h);
+                //println!("plotting {}", h);
                 let l = u128::from(*h) - first_ip;
 
                 g_hits.append(Rectangle::new()
