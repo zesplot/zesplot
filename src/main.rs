@@ -241,6 +241,7 @@ fn main() {
     // ./bgpdump -M latest-bview.gz | ack "::/" cut -d'|' -f 6,7 --output-delimiter=" " | awk '{print $1,$NF}' |sort -u
     // now, this still includes 6to4 2002::/16 announcements
     // should we filter these out?
+    // IDEA: limit those prefixes to say a /32 in size? and label them e.g. 6to4 instead of ASxxxx
 
     for line in BufReader::new(
         //File::open("ipv6_prefixes.txt").unwrap())
