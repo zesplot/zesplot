@@ -411,7 +411,7 @@ fn main() {
                     .set("x", area.x + area.w/2.0)
                     .set("y", area.y + area.h/2.0)
                     .set("font-family", "mono")
-                    .set("font-size", format!("{}%", area.w))
+                    .set("font-size", format!("{}%", area.w.min(area.h))) // == f64::min
                     .set("text-anchor", "middle");
                     label.append(Tekst::new(area.route.to_string()))
                     ;
