@@ -416,9 +416,10 @@ fn main() {
                 g_hits.append(Rectangle::new()
                               .set("x", area.x + x)
                               .set("y", area.y + y)
-                              .set("width", 0.01)
-                              .set("height", 0.01)
+                              .set("width", 0.001)
+                              .set("height", 0.001)
                               .set("stroke", "yellow")
+                              .set("stroke-width", 0.1)
                               );
             }
             group.append(g_hits); 
