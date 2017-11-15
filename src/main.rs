@@ -318,7 +318,7 @@ fn main() {
 
     let mut rows = Vec::new();
     //let (first_area, remaining_areas) = areas.split_first().unwrap();
-    let remaining_areas = areas.split_off(1);
+    let remaining_areas = areas.split_off(1); // FIXME crashes when there is only a single prefix
     let first_area = areas.pop().unwrap();
     let (mut new_row_x, mut new_row_y) = (0.0, 0.0);
     rows.push(Row::new(new_row_x, new_row_y, true, first_area));
@@ -389,22 +389,30 @@ fn main() {
 
             let mut g_hits = Group::new(); 
             let first_ip = u128::from(area.route.prefix.iter().next().unwrap());
-            let last_ip = first_ip + area.route.prefix.size();
-            //println!("{} through {}", first_ip, last_ip);
-            let prefix_range = last_ip - first_ip;
-            let u = area.surface as u128 / area.route.prefix.size(); 
+            let last_ip = Ipv6Addr::from(first_ip + area.route.prefix.size()-1);
+            println!("{} through {}", first_ip, last_ip);
+            let mut u = area.surface / (area.route.prefix.size()) as f64; 
+            //u = u  / (WIDTH );
+            println!("u: {}", u);
 
             
-            for h in area.route.hits.iter().take(10) {
-                //println!("plotting {}", h);
+            for h in area.route.hits.iter() { // .iter().take(1000) {
                 let l = u128::from(*h) - first_ip;
+                println!("l: {}", Ipv6Addr::from(l));
+                let y = (l as f64 * u) / area.w;
+                let x = (l as f64 * u) % area.w;
+                println!("x  = {}  % {} == {}", l as f64 * u, area.w, x);
+                println!("plotting {} at {} , {}", h, x, y);
 
                 g_hits.append(Rectangle::new()
-                              //.set("x", area.x + 
-                              
+                              .set("x", area.x + x)
+                              .set("y", area.y + y)
+                              .set("width", 0.01)
+                              .set("height", 0.01)
+                              .set("stroke", "yellow")
                               );
             }
-            
+            group.append(g_hits); 
 
 
             if area.w > 0.5 {
