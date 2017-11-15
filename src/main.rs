@@ -1,8 +1,8 @@
-#![feature(i128_type)]
+#![feature(i128, i128_type)]
 
 extern crate svg;
 extern crate ipnetwork;
-extern crate num;
+//extern crate num;
 #[macro_use] extern crate clap;
 
 use clap::{Arg, App};
@@ -13,7 +13,8 @@ use svg::node::element::{Rectangle, Text, Group};
 
 use ipnetwork::Ipv6Network;
 use std::net::Ipv6Addr;
-use num::PrimInt;
+//use num::PrimInt;
+//use num::pow::pow;
 
 use std::io::{BufReader};
 use std::io::prelude::*;
@@ -43,28 +44,36 @@ struct Row {
     areas: Vec<Area>,
 }
 
-// TODO: double check, did color of as5400 suddenly change?
 struct Route {
     prefix: Ipv6Network,
     asn:    u32,
-    //hits:   u32,
     hits: Vec<Ipv6Addr>,
 }
 
 impl Route {
-    fn size(&self) -> u64 {
+    fn size(&self) -> u128 {
         //TODO this is.. arbitrary
         // we might want to use u128 from nightly?
         // still, some 'scaling' like this might be giving prettier output
-        if self.prefix.prefix() < 64 {
-            //println!("size 64 - {}", self.prefix.prefix());
-            2.pow(64 - self.prefix.prefix() as u32)
-        } else {
-            // FIXME lets try something small for anything >/64
-            //println!("size 128 - {}", self.prefix.prefix());
-            //2.pow(128 - 1 - self.prefix.prefix() as u32)
-            2.pow(2)
+//        if self.prefix.prefix() < 64 {
+//            //println!("size 64 - {}", self.prefix.prefix());
+//            2.pow(64 - self.prefix.prefix() as u32)
+//        } else {
+//            // FIXME lets try something small for anything >/64
+//            //println!("size 128 - {}", self.prefix.prefix());
+//            //2.pow(128 - 1 - self.prefix.prefix() as u32)
+//            2.pow(2)
+//        }
+        //println!("2.pow of {}", 128 - self.prefix.prefix() as u32);
+        //let r =pow(2_u128, 128 - self.prefix.prefix() as usize );
+        //println!("  == {}", r);
+        let mut exp = self.prefix.prefix() as u32;
+        if exp < 24 {
+            exp = 24;
         }
+        //let r = 2_u128.pow(128 - self.prefix.prefix() as u32);
+        let r = 2_u128.pow(128 - exp);
+        r
     }
 
     fn to_string(&self) -> String {
@@ -235,7 +244,7 @@ fn main() {
     dots.sort();
 
     let mut routes: Vec<Route> = Vec::new();
-    let mut total_area = 0_u64;
+    let mut total_area = 0_u128;
 
     // TODO this input is generated a la:
     // ./bgpdump -M latest-bview.gz | ack "::/" cut -d'|' -f 6,7 --output-delimiter=" " | awk '{print $1,$NF}' |sort -u
@@ -390,19 +399,19 @@ fn main() {
             let mut g_hits = Group::new(); 
             let first_ip = u128::from(area.route.prefix.iter().next().unwrap());
             let last_ip = Ipv6Addr::from(first_ip + area.route.prefix.size()-1);
-            println!("{} through {}", first_ip, last_ip);
+            //println!("{} through {}", first_ip, last_ip);
             let mut u = area.surface / (area.route.prefix.size()) as f64; 
             //u = u  / (WIDTH );
-            println!("u: {}", u);
+            //println!("u: {}", u);
 
             
             for h in area.route.hits.iter() { // .iter().take(1000) {
                 let l = u128::from(*h) - first_ip;
-                println!("l: {}", Ipv6Addr::from(l));
+                //println!("l: {}", Ipv6Addr::from(l));
                 let y = (l as f64 * u) / area.w;
                 let x = (l as f64 * u) % area.w;
-                println!("x  = {}  % {} == {}", l as f64 * u, area.w, x);
-                println!("plotting {} at {} , {}", h, x, y);
+                //println!("x  = {}  % {} == {}", l as f64 * u, area.w, x);
+                //println!("plotting {} at {} , {}", h, x, y);
 
                 g_hits.append(Rectangle::new()
                               .set("x", area.x + x)
