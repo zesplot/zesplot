@@ -2,14 +2,14 @@
 
 extern crate svg;
 extern crate ipnetwork;
-//extern crate num;
+extern crate rand;
 #[macro_use] extern crate clap;
 
 use clap::{Arg, App};
 
 use svg::*;
 use svg::node::Text as Tekst;
-use svg::node::element::{Rectangle, Text, Group};
+use svg::node::element::{Rectangle, Circle, Text, Group};
 
 use ipnetwork::Ipv6Network;
 use std::net::Ipv6Addr;
@@ -20,6 +20,7 @@ use std::io::{BufReader};
 use std::io::prelude::*;
 use std::fs::File;
 
+use rand::{thread_rng, sample};
 
 const WIDTH: f64 = 160.0;
 const HEIGHT: f64 = 100.0;
@@ -52,21 +53,7 @@ struct Route {
 
 impl Route {
     fn size(&self) -> u128 {
-        //TODO this is.. arbitrary
-        // we might want to use u128 from nightly?
-        // still, some 'scaling' like this might be giving prettier output
-//        if self.prefix.prefix() < 64 {
-//            //println!("size 64 - {}", self.prefix.prefix());
-//            2.pow(64 - self.prefix.prefix() as u32)
-//        } else {
-//            // FIXME lets try something small for anything >/64
-//            //println!("size 128 - {}", self.prefix.prefix());
-//            //2.pow(128 - 1 - self.prefix.prefix() as u32)
-//            2.pow(2)
-//        }
-        //println!("2.pow of {}", 128 - self.prefix.prefix() as u32);
-        //let r =pow(2_u128, 128 - self.prefix.prefix() as usize );
-        //println!("  == {}", r);
+        //FIXME: this is just a workaround.. is there a better way to do this?
         let mut exp = self.prefix.prefix() as u32;
         if exp < 24 {
             exp = 24;
@@ -222,6 +209,11 @@ fn main() {
                              .short("f")
                              .long("filter")
                              .help("Filter out empty prefixes, only plotting prefixes containing addresses from the --addressess")
+                        )
+                        .arg(Arg::with_name("draw-hits")
+                             .short("d")
+                             .long("draw-hits")
+                             .help("Plot addresses on their respective areas")
                         )
                         .arg(Arg::with_name("plot-limit")
                              .short("l")
@@ -396,33 +388,48 @@ fn main() {
                 ;
             group.append(rect);
 
-            let mut g_hits = Group::new(); 
-            let first_ip = u128::from(area.route.prefix.iter().next().unwrap());
-            let last_ip = Ipv6Addr::from(first_ip + area.route.prefix.size()-1);
-            //println!("{} through {}", first_ip, last_ip);
-            let mut u = area.surface / (area.route.prefix.size()) as f64; 
-            //u = u  / (WIDTH );
-            //println!("u: {}", u);
+            if matches.is_present("draw-hits") {
+                let mut rng = thread_rng();
+                let sample = sample(&mut rng, &area.route.hits, 1000); //TODO make variable
+                //println!("took {} as sample from {}", sample.len(), area.route.hits.len());
+                let mut g_hits = Group::new(); 
+                let first_ip = u128::from(area.route.prefix.iter().next().unwrap());
+                let mut u = area.surface / (area.route.prefix.size()) as f64; 
+                //FIXME location is still incorrect
 
-            
-            for h in area.route.hits.iter() { // .iter().take(1000) {
-                let l = u128::from(*h) - first_ip;
-                //println!("l: {}", Ipv6Addr::from(l));
-                let y = (l as f64 * u) / area.w;
-                let x = (l as f64 * u) % area.w;
-                //println!("x  = {}  % {} == {}", l as f64 * u, area.w, x);
-                //println!("plotting {} at {} , {}", h, x, y);
+                //u = u  / (WIDTH );
+                //println!("u: {}", u);
 
-                g_hits.append(Rectangle::new()
-                              .set("x", area.x + x)
-                              .set("y", area.y + y)
-                              .set("width", 0.001)
-                              .set("height", 0.001)
-                              .set("stroke", "yellow")
-                              .set("stroke-width", 0.1)
-                              );
+                
+                //for h in area.route.hits.iter() { 
+                for h in sample {
+                    let l = u128::from(*h) - first_ip;
+                    //println!("l: {}", Ipv6Addr::from(l));
+                    let y = (l as f64 * u) / area.w;
+                    let x = (l as f64 * u) % area.w;
+                    //println!("x  = {}  % {} == {}", l as f64 * u, area.w, x);
+                    //println!("plotting {} at {} , {}", h, x, y);
+
+                    /*
+                    g_hits.append(Rectangle::new()
+                                  .set("x", area.x + x)
+                                  .set("y", area.y + y)
+                                  .set("width", 0.001)
+                                  .set("height", 0.001)
+                                  .set("stroke", "yellow")
+                                  .set("stroke-width", 0.1)
+                                  );
+                    */
+                    g_hits.append(Circle::new()
+                                    .set("cx", area.x + x)
+                                    .set("cy", area.y + y)
+                                    .set("r", 0.1)
+                                    .set("opacity", 0.1)
+                                    .set("fill", "yellow")
+                                    );
+                }
+                group.append(g_hits); 
             }
-            group.append(g_hits); 
 
 
             if area.w > 0.5 {
