@@ -20,8 +20,28 @@ or
 to compile zesplot. The resulting binaries will be respectively
 `target/debug/zesplot` and `target/release/zesplot`.
 
+## Using zesplot
+
+The (possibly outdated) `ipv6_prefixes.txt` containing announced v6 prefixes
+(created from RouteViews data) can be passed using `--prefixes`. The
+`address-file` passed must be a list of addresses, one-per-line.
+
+The prefix and address lists are mandatory arguments. Other options are listed
+below.
+
+After running, the resulting SVG file is written to `html/image.svg`, and it is
+inlined in `html/index.html`.
+
+
+## Example output
+
+
+[[doc/example_output.png|alt=zesplot example output]]
+
 
 ```
+$ zesplot -h
+
 USAGE:
     zesplot [FLAGS] [OPTIONS] --addresses <address-file> --prefixes <prefix-file>
 
