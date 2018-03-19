@@ -36,7 +36,7 @@ inlined in `html/index.html`.
 ## Example output
 
 
-[[doc/example_output.png|alt=zesplot example output]]
+![zesplot example output](doc/example_output.png)
 
 
 ```
