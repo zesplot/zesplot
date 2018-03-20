@@ -8,8 +8,12 @@ sizing and colours.
 ## Compiling
 
 Zesplot is implemented in Rust so we can leverage `cargo` to build it. Consider
-using rustup ( https://rustup.rs/ ) if you are new to Rust. Once you have Rust
-up and running, and cloned this repository, use either
+using rustup ( https://rustup.rs/ ) if you are new to Rust. We need to use
+nightly in order to leverage the 128 bit integer features not yet in the stable
+channel. Using rustup, run `rustup override set nightly` from within the cloned
+repository. Check using `rustc -V` whether you are now indeed using nightly.
+
+Once you have Rust up and running, and cloned this repository, use either
 
 	cargo build
 
