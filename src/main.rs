@@ -144,7 +144,9 @@ fn main() {
                 hits += 1;
                 r.hits.push(*d);
             } else if Ipv6Network::new(*d, 128).unwrap() > r.prefix {
-                start_i = start_i + i - 1;
+                if i > 0 {
+                    start_i += i-1;
+                }
                 break;
             }
              
