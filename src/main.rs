@@ -3,6 +3,12 @@
 mod treemap;
 use treemap::{Area,Row,Route};
 
+
+extern crate serde;
+#[macro_use]
+extern crate serde_derive;
+
+extern crate csv;
 extern crate svg;
 extern crate ipnetwork;
 extern crate rand;
@@ -50,6 +56,22 @@ fn color(i: u32, max: u32) -> String  {
     }
 }
 
+#[derive(Debug,Deserialize)]
+struct ZmapRecord {
+    saddr: String,
+    daddr: String,
+    ipid: u8,
+    ttl: u8,
+    sport: u16,
+    dport: u16,
+    classification: String,
+    repeat: u8,
+    cooldown: u8,
+    timestamp_ts: u64,
+    timestamp_us: u32,
+    success: u8,
+}
+
 fn main() {
 
     let matches = App::new("zesmap")
@@ -90,13 +112,27 @@ fn main() {
     eprintln!("-- reading input files");
 
     let mut dots: Vec<Ipv6Addr> = Vec::new();
-    for line in BufReader::new(
-        //File::open("ipv6_hits.txt").unwrap()).lines()
-        File::open(matches.value_of("address-file").unwrap()).unwrap()).lines()
-        {
-            let line = line.unwrap();
-            dots.push(line.parse().unwrap());
+
+    if matches.value_of("address-file").unwrap().ends_with(".csv") {
+        // expect ZMAP output as input
+        let mut rdr = csv::Reader::from_reader(File::open(matches.value_of("address-file").unwrap()).unwrap());
+        for result in rdr.deserialize() {
+            // The iterator yields Result<StringRecord, Error>, so we check the
+            // error here.
+            let record : ZmapRecord = result.unwrap();
+            //println!("{:?}", record.saddr);
+            dots.push(record.saddr.parse().unwrap());
         }
+    } else {
+        // expect a simple list of IPv6 addresses separated by newlines
+        for line in BufReader::new(
+                File::open(matches.value_of("address-file").unwrap()).unwrap()
+            ).lines(){
+                let line = line.unwrap();
+                dots.push(line.parse().unwrap());
+            }
+    }
+
     dots.sort();
 
     let mut routes: Vec<Route> = Vec::new();

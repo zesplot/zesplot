@@ -9,3 +9,6 @@ ipnetwork = { version = "*", features = ["ipv6-iterator", "ipv6-methods"] }
 num = "*"
 clap = "*"
 rand = "*"
+csv = "1.0.0-beta.5"
+serde = "1"
+serde_derive = "1"
