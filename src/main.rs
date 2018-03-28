@@ -115,7 +115,7 @@ fn main() {
 
     if matches.value_of("address-file").unwrap().ends_with(".csv") {
         // expect ZMAP output as input
-        let mut rdr = csv::Reader::from_reader(File::open(matches.value_of("address-file").unwrap()).unwrap());
+        let mut rdr = csv::Reader::from_path(matches.value_of("address-file").unwrap()).unwrap();
         for result in rdr.deserialize() {
             // The iterator yields Result<StringRecord, Error>, so we check the
             // error here.
