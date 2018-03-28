@@ -1,5 +1,8 @@
 #![feature(i128, i128_type)]
 
+mod treemap;
+use treemap::{Area,Row,Route};
+
 extern crate svg;
 extern crate ipnetwork;
 extern crate rand;
@@ -26,147 +29,8 @@ const WIDTH: f64 = 160.0;
 const HEIGHT: f64 = 100.0;
 const PLOT_LIMIT: u64 = 2000;
 
-//#[derive (Copy, Clone)]
-struct Area {
-    x: f64,
-    y: f64,
-    w: f64,
-    h: f64,
-    surface: f64,
-    route: Route,
-}
-
-struct Row {
-    x: f64,
-    y: f64,
-    w: f64,
-    h: f64,
-    vertical: bool,
-    areas: Vec<Area>,
-}
-
-struct Route {
-    prefix: Ipv6Network,
-    asn:    u32,
-    hits: Vec<Ipv6Addr>,
-}
-
-impl Route {
-    fn size(&self) -> u128 {
-        //FIXME: this is just a workaround.. is there a better way to do this?
-        let mut exp = self.prefix.prefix() as u32;
-        if exp < 24 {
-            exp = 24;
-        }
-        //let r = 2_u128.pow(128 - self.prefix.prefix() as u32);
-        let r = 2_u128.pow(128 - exp);
-        r
-    }
-
-    fn to_string(&self) -> String {
-        format!("AS{}", &self.asn)
-    }
-}
-
-impl Area {
-    fn new(surface: f64, ratio: f64, route: Route) -> Area {
-        let w = surface.powf(ratio);
-        let h = surface.powf(1.0 - ratio);
-        Area { x: 0.0, y: 0.0, w, h, surface, route }
-    }
-    fn get_ratio(&self) -> f64 {
-        if &self.h >= &self.w {
-            &self.w  / &self.h
-        } else {
-            &self.h / &self.w
-        }
-    }
-}
 
 
-impl Row {
-    fn new(x: f64, y: f64, vertical: bool, mut area: Area) -> Row {
-        let max_h = HEIGHT - y;
-        let max_w = WIDTH - x;
-        if vertical {
-            area.h = max_h;
-            area.w = area.surface / area.h;
-        } else {
-            area.w = max_w;
-            area.h = area.surface / area.w;
-        }
-        Row {x, y, w: area.w, h: area.h, vertical, areas:vec![area]}
-    }
-
-    fn try(&mut self, area: Area) -> Option<Area> {
-        let cur_worst = self.calc_worst();
-        &self.push(area);
-
-        if self.calc_worst() >= cur_worst {
-            None
-        } else {
-            self.pop()
-        }
-    }
-
-
-    fn reflow(&mut self) -> () {
-        if self.vertical {
-            let new_w = self.area() / self.h;
-            self.w = new_w;
-            let mut cur_y = self.y;
-            for a in &mut self.areas {
-                a.h = a.surface / new_w;
-                a.w = new_w;
-                a.x = self.x;
-                a.y = cur_y;
-                cur_y += a.h;
-            }
-        } else {
-            let new_h = self.area() / self.w;
-            self.h = new_h;
-            let mut cur_x = self.x;
-            for a in &mut self.areas {
-                a.w = a.surface / new_h;
-                a.h = new_h;
-                a.y = self.y;
-                a.x = cur_x;
-                cur_x += a.w;
-            }
-        }
-    }
-
-    fn pop(&mut self) -> Option<Area> {
-        let popped = self.areas.pop();
-        self.reflow();
-        popped
-    }
-
-    fn push(&mut self, mut area: Area) -> () {
-        if self.vertical {
-            area.x = self.x;
-        } else {
-            area.y = self.y;
-        }
-
-        &self.areas.push(area);
-        self.reflow();
-    }
-
-    fn area(&self) -> f64 {
-        self.areas.iter().fold(0.0, |mut s, a| {s += a.surface; s})
-    }
-
-    fn calc_worst(&self) -> f64 {
-        self.areas.iter().fold(1.0, |mut w, a| {
-            if a.get_ratio() < w {
-                w = a.get_ratio();
-            }
-            w
-        })
-    }
-
-}
 
 fn _color(i: u32) -> String  {
     if i == 0 {
