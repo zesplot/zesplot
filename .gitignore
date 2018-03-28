@@ -1,0 +1,5 @@
+/input
+
+/target
+**/*.rs.bk
+**/*.swp
