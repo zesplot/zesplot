@@ -28,6 +28,7 @@ use std::net::Ipv6Addr;
 use std::io::{BufReader};
 use std::io::prelude::*;
 use std::fs::File;
+use std::path::Path;
 
 use rand::{thread_rng, sample};
 
@@ -373,6 +374,10 @@ fn main() {
     eprintln!("-- creating output files");
 
     svg::save("html/image.svg", &document).unwrap();
+    let output_fn = format!("output/{}.svg", Path::new(matches.value_of("address-file").unwrap()).file_stem().unwrap().to_str().unwrap());
+    eprintln!("creating {}", output_fn);
+    //svg::save(format!("output/{}.svg", matches.value_of("address-file").unwrap()), &document).unwrap();
+    svg::save(output_fn, &document).unwrap();
     let mut raw_svg = String::new();
     BufReader::new(
         File::open("html/image.svg").unwrap()
