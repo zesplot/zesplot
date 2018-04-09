@@ -4,11 +4,23 @@ mod treemap;
 use treemap::{Area,Row,Route};
 
 
+
+extern crate easy_csv;
+#[macro_use]
+extern crate easy_csv_derive;
+extern crate csv;
+
+use easy_csv::{CSVIterator,CSVParsable};
+
+
+use std::time::{Instant};
+
+
+
 extern crate serde;
 #[macro_use]
 extern crate serde_derive;
 
-extern crate csv;
 extern crate svg;
 extern crate ipnetwork;
 extern crate rand;
@@ -57,20 +69,20 @@ fn color(i: u32, max: u32) -> String  {
     }
 }
 
-#[derive(Debug,Deserialize)]
+#[derive(Debug,CSVParsable)] //Deserialize
 struct ZmapRecord {
     saddr: String,
-    daddr: String,
-    ipid: u8,
+//    daddr: String,
+//    ipid: u8,
     ttl: u8,
-    sport: u16,
-    dport: u16,
-    classification: String,
-    repeat: u8,
-    cooldown: u8,
-    timestamp_ts: u64,
-    timestamp_us: u32,
-    success: u8,
+//    sport: u16,
+//    dport: u16,
+//    classification: String,
+//    repeat: u8,
+//    cooldown: u8,
+//    timestamp_ts: u64,
+//    timestamp_us: u32,
+//    success: u8,
 }
 
 fn main() {
@@ -114,16 +126,26 @@ fn main() {
 
     let mut dots: Vec<Ipv6Addr> = Vec::new();
 
-    if matches.value_of("address-file").unwrap().ends_with(".csv") {
+    let mut now = Instant::now();
+    if matches.value_of("address-file").unwrap().contains(".csv") {
         // expect ZMAP output as input
-        let mut rdr = csv::Reader::from_path(matches.value_of("address-file").unwrap()).unwrap();
-        for result in rdr.deserialize() {
-            // The iterator yields Result<StringRecord, Error>, so we check the
-            // error here.
-            let record : ZmapRecord = result.unwrap();
-            //println!("{:?}", record.saddr);
-            dots.push(record.saddr.parse().unwrap());
-        }
+        let mut rdr = csv::Reader::from_file(matches.value_of("address-file").unwrap()).unwrap();
+
+        let iter = CSVIterator::<ZmapRecord,_>::new(&mut rdr).unwrap();
+        //for zmap_record in iter {
+        //    dots.push(zmap_record.unwrap().saddr.parse().unwrap());
+        //}
+
+        dots.append(&mut iter.map(|i| i.unwrap().saddr.parse().unwrap()).collect::<Vec<_>>());
+
+//
+//        for result in rdr.deserialize() {
+//            // The iterator yields Result<StringRecord, Error>, so we check the
+//            // error here.
+//            let record : ZmapRecord = result.unwrap();
+//            //println!("{:?}", record.saddr);
+//            dots.push(record.saddr.parse().unwrap());
+//        }
     } else {
         // expect a simple list of IPv6 addresses separated by newlines
         for line in BufReader::new(
@@ -134,7 +156,11 @@ fn main() {
             }
     }
 
+    //let timing_file_read = now.elapsed().as_secs() as f64 + (now.elapsed().subsec_nanos() / 1_000_000_000) as f64;
+    eprintln!("[TIME] file read: {}.{:.2}s", now.elapsed().as_secs(),  now.elapsed().subsec_nanos() / 1_000_000);
+    now = Instant::now();
     dots.sort();
+    eprintln!("[TIME] dots sort: {}.{:.2}s", now.elapsed().as_secs(),  now.elapsed().subsec_nanos() / 1_000_000);
 
     let mut routes: Vec<Route> = Vec::new();
     let mut total_area = 0_u128;
@@ -252,6 +278,7 @@ fn main() {
 
 
     println!("-- creating svg");
+
     //let mut rects: Vec<Rectangle> = Vec::new();
     //let mut labels: Vec<Text> = Vec::new();
     let mut groups: Vec<Group> = Vec::new();
