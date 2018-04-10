@@ -4,22 +4,23 @@ mod treemap;
 use treemap::{Area,Row,Route};
 
 
+extern crate colored;
+use colored::*;
 
 extern crate easy_csv;
 #[macro_use]
 extern crate easy_csv_derive;
 extern crate csv;
 
-use easy_csv::{CSVIterator,CSVParsable};
+use easy_csv::{CSVIterator};
 
 
 use std::time::{Instant};
 
+extern crate treebitmap;
+use treebitmap::{IpLookupTable, IpLookupTableOps};
+use std::io;
 
-
-extern crate serde;
-#[macro_use]
-extern crate serde_derive;
 
 extern crate svg;
 extern crate ipnetwork;
@@ -69,6 +70,49 @@ fn color(i: u32, max: u32) -> String  {
     }
 }
 
+
+// the input for prefixes_from_file is generated a la:
+// ./bgpdump -M latest-bview.gz | ack "::/" cut -d'|' -f 6,7 --output-delimiter=" " | awk '{print $1,$NF}' |sort -u
+// now, this still includes 6to4 2002::/16 announcements
+// should we filter these out?
+// IDEA: limit those prefixes to say a /32 in size? and label them e.g. 6to4 instead of ASxxxx
+
+// bgpstream variant:
+// bgpreader -c route-views6 -w 1522920000,1522928386 -k 2000::/3 > /tmp/bgpreader.test.today 
+// cut -d'|' -f8,11 /tmp/bgpreader.test.today | sort -u > bgpreader.test.today.sorted
+
+// or, simply fetched from http://data.caida.org/datasets/routing/routeviews6-prefix2as/2018/01/
+// awk '{print $1"/"$2, $3}'
+
+fn prefixes_from_file<'a>(f: &'a str) -> io::Result<IpLookupTable<Ipv6Addr,Route>> {
+    let mut file = File::open(f)?;
+    let mut s = String::new();
+    file.read_to_string(&mut s)?;
+    let mut table: IpLookupTable<Ipv6Addr,Route> = IpLookupTable::new();
+    for line in s.lines() {
+        let parts = line.split_whitespace().collect::<Vec<&str>>();
+        //let route: Ipv6Network = parts[0].parse().unwrap();
+        if let Ok(route) = parts[0].parse::<Ipv6Network>(){
+
+            let asn = parts[1]; //.parse::<u32>();
+                table.insert(route.ip(), route.prefix().into(),
+                        Route { prefix: route, asn: asn.to_string(), hits: Vec::new()});
+            // TODO remove parsing to u32 because of asn_asn,asn notation in pfx2as
+            //if let Ok(asn) = asn.parse::<u32>() {
+            //    table.insert(route.ip(), route.prefix().into(),
+            //            //Route { prefix: route, asn: asn.parse::<u32>().unwrap(), hits: Vec::new()});
+            //            Route { prefix: route, asn: asn, hits: Vec::new()});
+            //} else {
+            //    eprintln!("choked on {} while reading prefixes file", line);
+            //}
+        } else {
+                eprintln!("choked on {} while reading prefixes file", line);
+        }
+    }; 
+    Ok(table)
+}
+
+
 #[derive(Debug,CSVParsable)] //Deserialize
 struct ZmapRecord {
     saddr: String,
@@ -83,6 +127,12 @@ struct ZmapRecord {
 //    timestamp_ts: u64,
 //    timestamp_us: u32,
 //    success: u8,
+}
+
+
+struct DataPoint {
+    ip6: Ipv6Addr,
+    meta: u32, // meta value, e.g. TTL
 }
 
 fn main() {
@@ -125,6 +175,7 @@ fn main() {
     eprintln!("-- reading input files");
 
     let mut dots: Vec<Ipv6Addr> = Vec::new();
+    let mut datapoints: Vec<DataPoint> = Vec::new();
 
     let mut now = Instant::now();
     if matches.value_of("address-file").unwrap().contains(".csv") {
@@ -132,11 +183,19 @@ fn main() {
         let mut rdr = csv::Reader::from_file(matches.value_of("address-file").unwrap()).unwrap();
 
         let iter = CSVIterator::<ZmapRecord,_>::new(&mut rdr).unwrap();
-        //for zmap_record in iter {
-        //    dots.push(zmap_record.unwrap().saddr.parse().unwrap());
-        //}
+        for zmap_record in iter {
+            let z = zmap_record.unwrap();
+            datapoints.push(
+                DataPoint { 
+                    ip6: z.saddr.parse().unwrap(),
+                    meta: z.ttl.into()
+                }
+            );
+            dots.push(z.saddr.parse().unwrap());
+        }
 
-        dots.append(&mut iter.map(|i| i.unwrap().saddr.parse().unwrap()).collect::<Vec<_>>());
+        // this is not significantly faster:
+        //dots.append(&mut iter.map(|i| i.unwrap().saddr.parse().unwrap()).collect::<Vec<_>>());
 
 //
 //        for result in rdr.deserialize() {
@@ -156,79 +215,81 @@ fn main() {
             }
     }
 
-    //let timing_file_read = now.elapsed().as_secs() as f64 + (now.elapsed().subsec_nanos() / 1_000_000_000) as f64;
     eprintln!("[TIME] file read: {}.{:.2}s", now.elapsed().as_secs(),  now.elapsed().subsec_nanos() / 1_000_000);
+
+
     now = Instant::now();
-    dots.sort();
-    eprintln!("[TIME] dots sort: {}.{:.2}s", now.elapsed().as_secs(),  now.elapsed().subsec_nanos() / 1_000_000);
+    let table = prefixes_from_file(matches.value_of("prefix-file").unwrap()).unwrap();
+    eprintln!("items in table: {}", table.iter().count());
+    eprintln!("[TIME] table: {}.{:.2}s", now.elapsed().as_secs(),  now.elapsed().subsec_nanos() / 1_000_000);
 
-    let mut routes: Vec<Route> = Vec::new();
-    let mut total_area = 0_u128;
-
-    // TODO this input is generated a la:
-    // ./bgpdump -M latest-bview.gz | ack "::/" cut -d'|' -f 6,7 --output-delimiter=" " | awk '{print $1,$NF}' |sort -u
-    // now, this still includes 6to4 2002::/16 announcements
-    // should we filter these out?
-    // IDEA: limit those prefixes to say a /32 in size? and label them e.g. 6to4 instead of ASxxxx
-
-    for line in BufReader::new(
-        //File::open("ipv6_prefixes.txt").unwrap())
-        File::open(matches.value_of("prefix-file").unwrap()).unwrap())
-        .lines()
-            //.take(1000) 
-            {
-        let line = line.unwrap();
-        let parts: Vec<&str> = line.split(' ').collect();//::<(&str,&str)>();
-        //let route = IPAddress::parse(parts[0]).unwrap();
-        let route: Ipv6Network = parts[0].parse().unwrap();
-
-        match parts[1].parse::<u32>() {
-            Ok(asn) => {
-                let r = Route {prefix: route, asn, hits: Vec::new()};
-                total_area += r.size();
-                routes.push(r)
-            },
-            Err(e) => println!("Error in {}: {}", parts[1],  e)
-        }
-    }
 
     eprintln!("-- matching /128s with prefixes");
 
-    // We need to sort both by prefix as by size
-    // so addresses are matched to the most-specific prefix
-    routes.sort_by(|a, b| a.prefix.cmp(&b.prefix).then(a.size().cmp(&b.size()).reverse()) );
-
-    let mut start_i = 0;
-    let mut max_hits = 0;
-    for r in &mut routes {
-        let mut hits = 0;
-        for (i, d) in dots[start_i..].iter().enumerate() {
-            if r.prefix.contains(*d) {
-                hits += 1;
-                r.hits.push(*d);
-            } else if Ipv6Network::new(*d, 128).unwrap() > r.prefix {
-                if i > 0 {
-                    start_i += i-1;
-                }
-                break;
-            }
-             
+    now = Instant::now();
+    let mut table_matches = 0;
+    for d in dots.iter() {
+        if let Some((_, _, r)) =  table.longest_match(*d) {
+            r.push(*d) ;
+            table_matches += 1;
+        } else {
+            eprintln!("could not match {:?}", d);
         }
+        //let r = table.longest_match(*d).unwrap();//.2;
+        //r.2.push(*d);
+    }
+    eprintln!("[TIME] treebitmap: {}.{:.2}s", now.elapsed().as_secs(),  now.elapsed().subsec_nanos() / 1_000_000);
 
-        //r.hits = hits;
-        if hits > max_hits {
-            max_hits = hits;
+    
+    let match_count = format!("table matched {} out of {} addresses", table_matches, dots.len());
+    if table_matches == dots.len() {
+        //eprintln!("table matched {} out of {} addresses", table_matches.to_string().green(), dots.len());
+        eprintln!("{}", match_count.green());
+    } else {
+        eprintln!("{}", match_count.red());
+    }
+
+    let mut max_hits = 0;
+    let mut total_area = 0_u128;
+    
+    // sum up the sizes of all the prefixes:
+    // and find the max hits for the colour scale
+    for (_,_,r) in table.iter() {
+        total_area += r.size();
+        if r.hits.len() > max_hits {
+            max_hits = r.hits.len();
         }
     }
+    //eprintln!("total_area: {}", total_area);
+    //eprintln!("max_hits: {}", max_hits);
+
 
     eprintln!("-- fitting areas in plot");
-    println!("pre: {} routes, total size {}", routes.len(), total_area);
+
+    let mut routes: Vec<Route> = table.into_iter().map(|(_,_,r)| r).collect();
+    // top 10 prefixes
+    eprintln!("top 10 prefixes with most hits");
+    routes.sort_by(|a, b| a.hits.len().cmp(&b.hits.len()).reverse());
+    for r in routes.iter().take(10) {
+        println!("{} {} : {}", r.asn, r.prefix, r.hits.len())
+    }
+    eprintln!("----");
 
     if matches.is_present("filter-empty-prefixes") {
+        eprintln!("pre filtering: {} routes, total size {}", routes.len(), total_area);
         routes.retain(|r| r.hits.len() > 0);
+        total_area = routes.iter().fold(0, |mut s, r|{s += r.size(); s});
+        eprintln!("post filtering: {} routes, total size {}", routes.len(), total_area);
+    } else {
+        eprintln!("no filtering of empty prefixes");
     }
-    total_area = routes.iter().fold(0, |mut s, r|{s += r.size(); s});
-    eprintln!("post: {} routes, total size {}", routes.len(), total_area);
+
+    eprintln!("bottom 10 prefixes with smallest prefix lenghts");
+    routes.sort_by(|a, b| a.prefix_len().cmp(&b.prefix_len()).reverse());
+    for r in routes.iter().take(10) {
+        println!("{} {} : {}", r.asn, r.prefix, r.hits.len())
+    }
+    eprintln!("----");
 
     // initial aspect ratio FIXME this doesn't affect anything, remove
     let init_ar: f64 = 1_f64 / (8.0/1.0);
@@ -311,7 +372,7 @@ fn main() {
                 .set("y", area.y)
                 .set("width", area.w)
                 .set("height", area.h)
-                .set("fill", color(area.route.hits.len() as u32, max_hits)) 
+                .set("fill", color(area.route.hits.len() as u32, max_hits as u32)) 
                 .set("stroke-width", border)
                 .set("stroke", "black")
                 .set("opacity", 1.0)
@@ -371,7 +432,6 @@ fn main() {
                     .set("text-anchor", "middle");
                     label.append(Tekst::new(area.route.to_string()))
                     ;
-                //labels.push(label);
                 group.append(label);
             }
             groups.push(group);
@@ -388,12 +448,6 @@ fn main() {
                         .set("viewBox", (0, 0, WIDTH, HEIGHT))
                         .set("id", "treeplot")
                         ;
-//    for r in rects {
-//        document.append(r);
-//    }
-//    for l in labels {
-//        document.append(l);
-//    }
     for g in groups {
         document.append(g);
     }

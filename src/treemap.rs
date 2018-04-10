@@ -22,7 +22,8 @@ pub struct Row {
 
 pub struct Route {
     pub prefix: Ipv6Network,
-    pub asn:    u32,
+    //pub asn:    u32,
+    pub asn:    String,
     pub hits: Vec<Ipv6Addr>,
 }
 
@@ -30,16 +31,30 @@ impl Route {
     pub fn size(&self) -> u128 {
         //FIXME: this is just a workaround.. is there a better way to do this?
         let mut exp = self.prefix.prefix() as u32;
-        if exp < 24 {
-            exp = 24;
-        }
-        //let r = 2_u128.pow(128 - self.prefix.prefix() as u32);
+        //if exp < 48 {
+        //    exp = 48;
+        //}
+        //if exp > 64 {
+        //    exp = 64;
+        //}
+        exp = 64; // TODO this is just to get equal sized squares
         let r = 2_u128.pow(128 - exp);
         r
     }
 
+    pub fn _size(&self) -> u128 {
+        128 - self.prefix_len() as u128
+    }
+
     pub fn to_string(&self) -> String {
         format!("AS{}", &self.asn)
+    }
+
+    pub fn push(&mut self, a: Ipv6Addr) -> () {
+        self.hits.push(a);
+    }
+    pub fn prefix_len(&self) -> u8  {
+        self.prefix.prefix()
     }
 }
 
