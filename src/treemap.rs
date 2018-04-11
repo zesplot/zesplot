@@ -24,7 +24,6 @@ pub struct Route {
     pub prefix: Ipv6Network,
     //pub asn:    u32,
     pub asn:    String,
-    pub hits: Vec<Ipv6Addr>,
     pub datapoints: Vec<super::DataPoint>,
 
 }
@@ -52,9 +51,6 @@ impl Route {
         format!("AS{}", &self.asn)
     }
 
-    pub fn push(&mut self, a: Ipv6Addr) -> () {
-        self.hits.push(a);
-    }
     pub fn push_dp(&mut self, dp: super::DataPoint) -> () {
         self.datapoints.push(dp);
     }
