@@ -24,7 +24,7 @@ __SVG__
 			+ "<br/>" 
 			+ "dp-avg: " + $(this).data('dp-avg')
 			+ "<br/>" 
-			+ "hm-avg: " + $(this).data('hw-avg')
+			+ "hw-avg: " + $(this).data('hw-avg')
 		);
 	});
 	$('g').powerTip({
