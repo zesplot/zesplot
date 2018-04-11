@@ -21,6 +21,10 @@ __SVG__
 			+ $(this).data('prefix')
 			+ "<br/>" 
 			+ "hits: " + $(this).data('hits')
+			+ "<br/>" 
+			+ "dp-avg: " + $(this).data('dp-avg')
+			+ "<br/>" 
+			+ "hm-avg: " + $(this).data('hw-avg')
 		);
 	});
 	$('g').powerTip({

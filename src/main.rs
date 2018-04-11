@@ -60,12 +60,18 @@ fn _color(i: u32) -> String  {
     }
 }
 
+// for the original 'colour == number of hits', we want log2
+// for things that are less spread, e.g. avg TTL, the non-log version might give better output
+// TODO: try whether some threshold within the same function works
+// e.g. if max > 1024, then log2()
 fn color(i: u32, max: u32) -> String  {
     if i == 0 {
         "#eeeeee".to_string()
     } else {
         let norm_factor = (1.0 / ((max as f32).log2() / 255.0)) as f32;
         let v = (norm_factor *(i as f32).log2()) as u32;
+        //let norm_factor = (1.0 / ((max as f32) / 255.0)) as f32;
+        //let v = (norm_factor *(i as f32)) as u32;
         format!("#{:02x}00{:02x}", v, 0xFF-v)
     }
 }
@@ -96,7 +102,7 @@ fn prefixes_from_file<'a>(f: &'a str) -> io::Result<IpLookupTable<Ipv6Addr,Route
 
             let asn = parts[1]; //.parse::<u32>();
                 table.insert(route.ip(), route.prefix().into(),
-                        Route { prefix: route, asn: asn.to_string(), hits: Vec::new()});
+                        Route { prefix: route, asn: asn.to_string(), hits: Vec::new(), datapoints: Vec::new()});
             // TODO remove parsing to u32 because of asn_asn,asn notation in pfx2as
             //if let Ok(asn) = asn.parse::<u32>() {
             //    table.insert(route.ip(), route.prefix().into(),
@@ -130,10 +136,37 @@ struct ZmapRecord {
 }
 
 
-struct DataPoint {
+pub struct DataPoint {
     ip6: Ipv6Addr,
     meta: u32, // meta value, e.g. TTL
 }
+
+impl DataPoint {
+    fn hamming_weight(&self, prefix_len: u8) -> u32 {
+        (u128::from(self.ip6) << prefix_len  >> prefix_len).count_ones()
+    }
+    fn hamming_weight_iid(&self) -> u32 {
+        self.hamming_weight(64)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn hamming_weight() {
+        let dp = super::DataPoint { ip6: "2001:db8::1".parse().unwrap(), meta: 0 };
+        assert_eq!(dp.hamming_weight(64), 1);
+        let dp = super::DataPoint { ip6: "2001:db8::2".parse().unwrap(), meta: 0 };
+        assert_eq!(dp.hamming_weight(64), 1);
+        let dp = super::DataPoint { ip6: "2001:db8::1:1:1:1".parse().unwrap(), meta: 0 };
+        assert_eq!(dp.hamming_weight(64), 4);
+        let dp = super::DataPoint { ip6: "2001:db8::1:1:1:1".parse().unwrap(), meta: 0 };
+        assert_eq!(dp.hamming_weight(96), 2);
+        let dp = super::DataPoint { ip6: "2001:db8::3:3:3:3".parse().unwrap(), meta: 0 };
+        assert_eq!(dp.hamming_weight(64), 2+2+2+2);
+    }
+}
+
 
 fn main() {
 
@@ -230,7 +263,7 @@ fn main() {
     let mut table_matches = 0;
     for d in dots.iter() {
         if let Some((_, _, r)) =  table.longest_match(*d) {
-            r.push(*d) ;
+            r.push(*d);
             table_matches += 1;
         } else {
             eprintln!("could not match {:?}", d);
@@ -239,6 +272,25 @@ fn main() {
         //r.2.push(*d);
     }
     eprintln!("[TIME] treebitmap: {}.{:.2}s", now.elapsed().as_secs(),  now.elapsed().subsec_nanos() / 1_000_000);
+
+
+    // TODO try to use datapoints instead of naked Ipv6Addr
+    // this way we can use extra info from zmap input
+
+
+    now = Instant::now();
+    //let mut table_matches = 0;
+    for dp in datapoints.into_iter() {
+        if let Some((_, _, r)) = table.longest_match(dp.ip6) {
+            r.push_dp(dp);
+            table_matches += 1;
+        } else {
+            eprintln!("could not match {:?}", dp.ip6);
+        }
+        //let r = table.longest_match(*d).unwrap();//.2;
+        //r.2.push(*d);
+    }
+    eprintln!("[TIME] datapoints treebitmap: {}.{:.2}s", now.elapsed().as_secs(),  now.elapsed().subsec_nanos() / 1_000_000);
 
     
     let match_count = format!("table matched {} out of {} addresses", table_matches, dots.len());
@@ -250,6 +302,8 @@ fn main() {
     }
 
     let mut max_hits = 0;
+    let mut max_meta = 0f64;
+    let mut max_hamming_weight = 0f64;
     let mut total_area = 0_u128;
     
     // sum up the sizes of all the prefixes:
@@ -259,9 +313,18 @@ fn main() {
         if r.hits.len() > max_hits {
             max_hits = r.hits.len();
         }
+        if r.dp_avg() > max_meta {
+            max_meta = r.dp_avg();
+        }
+        if r.hw_avg() > max_hamming_weight {
+            max_hamming_weight = r.hw_avg();
+            eprintln!("max hw: {}", r.prefix);
+        }
     }
     //eprintln!("total_area: {}", total_area);
     //eprintln!("max_hits: {}", max_hits);
+    eprintln!("max_meta: {}", max_meta);
+    eprintln!("max_hamming_weight: {}", max_hamming_weight);
 
 
     eprintln!("-- fitting areas in plot");
@@ -299,7 +362,14 @@ fn main() {
     let mut areas: Vec<Area> = Vec::new();
 
     // sort by both size and ASN, so ASs are grouped in the final plot
-    routes.sort_by(|a, b| b.size().cmp(&a.size()).then(a.asn.cmp(&b.asn))  );
+    // FIXME size() is confusing:
+    //   there is the actual prefix size, e.g. /32
+    //   and there is our size() that might do (128-32)^2, or something else
+    //   for now, use prefix_len() to sort
+    //   and keep size() to adjust sizes of the rectangles to get some reasonable output
+
+    //routes.sort_by(|a, b| b.size().cmp(&a.size()).then(a.asn.cmp(&b.asn))  );
+    routes.sort_by(|a, b| b.prefix_len().cmp(&a.prefix_len()).reverse().then(a.asn.cmp(&b.asn))  );
 
     for r in routes {
         areas.push(Area::new(r.size() as f64 * norm_factor, init_ar, r  ));
@@ -360,6 +430,8 @@ fn main() {
                 .set("data-asn", area.route.asn.to_string())
                 .set("data-prefix", area.route.prefix.to_string())
                 .set("data-hits", area.route.hits.len().to_string())
+                .set("data-dp-avg", format!("{:.1}", area.route.dp_avg()))
+                .set("data-hw-avg", format!("{:.1}", area.route.hw_avg()))
                 ;
 
             let mut border = 0.0005 * area.surface;
@@ -372,7 +444,9 @@ fn main() {
                 .set("y", area.y)
                 .set("width", area.w)
                 .set("height", area.h)
-                .set("fill", color(area.route.hits.len() as u32, max_hits as u32)) 
+                //.set("fill", color(area.route.hits.len() as u32, max_hits as u32)) 
+                .set("fill", color(area.route.hw_avg() as u32, max_hamming_weight as u32)) 
+                //.set("fill", color(area.route.dp_avg() as u32, max_meta as u32)) 
                 .set("stroke-width", border)
                 .set("stroke", "black")
                 .set("opacity", 1.0)

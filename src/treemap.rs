@@ -25,19 +25,21 @@ pub struct Route {
     //pub asn:    u32,
     pub asn:    String,
     pub hits: Vec<Ipv6Addr>,
+    pub datapoints: Vec<super::DataPoint>,
+
 }
 
 impl Route {
     pub fn size(&self) -> u128 {
         //FIXME: this is just a workaround.. is there a better way to do this?
         let mut exp = self.prefix.prefix() as u32;
-        //if exp < 48 {
-        //    exp = 48;
-        //}
-        //if exp > 64 {
-        //    exp = 64;
-        //}
-        exp = 64; // TODO this is just to get equal sized squares
+        if exp < 24 {
+            exp = 24;
+        }
+        if exp > 64 {
+            exp = 64;
+        }
+        //exp = 64; // TODO this is just to get equal sized squares
         let r = 2_u128.pow(128 - exp);
         r
     }
@@ -53,8 +55,21 @@ impl Route {
     pub fn push(&mut self, a: Ipv6Addr) -> () {
         self.hits.push(a);
     }
+    pub fn push_dp(&mut self, dp: super::DataPoint) -> () {
+        self.datapoints.push(dp);
+    }
     pub fn prefix_len(&self) -> u8  {
         self.prefix.prefix()
+    }
+
+    pub fn dp_avg(&self) -> f64 {
+        let sum = self.datapoints.iter().fold(0, |s, i| s + i.meta);
+        sum as f64 / self.datapoints.len() as f64
+    }
+
+    pub fn hw_avg(&self) -> f64 {
+        let sum = self.datapoints.iter().fold(0, |s, i| s + i.hamming_weight(self.prefix_len()));
+        sum as f64 / self.datapoints.len() as f64
     }
 }
 
