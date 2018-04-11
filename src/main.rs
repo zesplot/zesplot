@@ -277,37 +277,28 @@ fn main() {
 
     now = Instant::now();
     let table = prefixes_from_file(matches.value_of("prefix-file").unwrap()).unwrap();
-    eprintln!("items in table: {}", table.iter().count());
-    eprintln!("[TIME] table: {}.{:.2}s", now.elapsed().as_secs(),  now.elapsed().subsec_nanos() / 1_000_000);
 
+    //eprintln!("-- matching /128s with prefixes");
 
-    eprintln!("-- matching /128s with prefixes");
-
-    now = Instant::now();
-    let mut table_matches = 0;
-    let dp_len = datapoints.len();
+    eprintln!("prefixes: {} , addresses: {}", table.iter().count(), datapoints.len());
+    let mut prefix_mismatches = 0;
     for dp in datapoints.into_iter() {
         if let Some((_, _, r)) = table.longest_match(dp.ip6) {
             r.push_dp(dp);
-            table_matches += 1;
         } else {
-            eprintln!("could not match {:?}", dp.ip6);
+            //eprintln!("could not match {:?}", dp.ip6);
+            prefix_mismatches += 1;
         }
-        //let r = table.longest_match(*d).unwrap();//.2;
-        //r.2.push(*d);
     }
-    eprintln!("[TIME] datapoints treebitmap: {}.{:.2}s", now.elapsed().as_secs(),  now.elapsed().subsec_nanos() / 1_000_000);
-
     
-    let match_count = format!("table matched {} out of {} addresses", table_matches, dp_len);
-    if table_matches == dp_len {
-        eprintln!("{}", match_count.green());
-    } else {
-        eprintln!("{}", match_count.red());
+    if prefix_mismatches > 0 {
+        let s = format!("Could not match {} addresses", prefix_mismatches).to_string().on_red().bold();
+        eprintln!("{}", s);
     }
 
+    // maximum values to determine colour scale later on
     let mut max_hits = 0;
-    let mut max_meta = 0f64;
+    let mut max_meta = 0f64; // based on DataPoint.meta, e.g. TTL
     let mut max_hamming_weight = 0f64;
     let mut total_area = 0_u128;
     
@@ -323,18 +314,25 @@ fn main() {
         }
         if r.hw_avg() > max_hamming_weight {
             max_hamming_weight = r.hw_avg();
-            eprintln!("max hw: {}", r.prefix);
         }
     }
     //eprintln!("total_area: {}", total_area);
     //eprintln!("max_hits: {}", max_hits);
-    eprintln!("max_meta: {}", max_meta);
-    eprintln!("max_hamming_weight: {}", max_hamming_weight);
-
-
-    eprintln!("-- fitting areas in plot");
+    //eprintln!("max_meta: {}", max_meta);
+    //eprintln!("max_hamming_weight: {}", max_hamming_weight);
 
     let mut routes: Vec<Route> = table.into_iter().map(|(_,_,r)| r).collect();
+
+    if matches.is_present("filter-empty-prefixes") {
+        let pre_filter_len = routes.len();
+        routes.retain(|r| r.datapoints.len() > 0);
+        total_area = routes.iter().fold(0, |mut s, r|{s += r.size(); s});
+        eprintln!("filtered {} empty prefixes, left: {}", pre_filter_len - routes.len(), routes.len());
+    } else {
+        eprintln!("no filtering of empty prefixes");
+    }
+
+    /*
     // top 10 prefixes
     eprintln!("top 10 prefixes with most hits");
     routes.sort_by(|a, b| a.datapoints.len().cmp(&b.datapoints.len()).reverse());
@@ -342,22 +340,15 @@ fn main() {
         println!("{} {} : {}", r.asn, r.prefix, r.datapoints.len())
     }
     eprintln!("----");
-
-    if matches.is_present("filter-empty-prefixes") {
-        eprintln!("pre filtering: {} routes, total size {}", routes.len(), total_area);
-        routes.retain(|r| r.datapoints.len() > 0);
-        total_area = routes.iter().fold(0, |mut s, r|{s += r.size(); s});
-        eprintln!("post filtering: {} routes, total size {}", routes.len(), total_area);
-    } else {
-        eprintln!("no filtering of empty prefixes");
-    }
-
+    
+    // bottom 10 smallest prefix lenghts
     eprintln!("bottom 10 prefixes with smallest prefix lenghts");
     routes.sort_by(|a, b| a.prefix_len().cmp(&b.prefix_len()).reverse());
     for r in routes.iter().take(10) {
         println!("{} {} : {}", r.asn, r.prefix, r.datapoints.len())
     }
     eprintln!("----");
+    */
 
     // initial aspect ratio FIXME this doesn't affect anything, remove
     let init_ar: f64 = 1_f64 / (8.0/1.0);
@@ -413,7 +404,7 @@ fn main() {
     }
 
 
-    println!("-- creating svg");
+    //eprintln!("-- creating svg");
 
     //let mut rects: Vec<Rectangle> = Vec::new();
     //let mut labels: Vec<Text> = Vec::new();
@@ -422,7 +413,7 @@ fn main() {
 
     //let plot_limit = matches.value_of("plot-limit").unwrap_or(PLOT_LIMIT);
     let plot_limit = value_t!(matches, "plot-limit", u64).unwrap_or(PLOT_LIMIT);
-    println!("plot_limit: {}", plot_limit);
+    //eprintln!("plot_limit: {}", plot_limit);
     for row in rows {
         //println!("new row: {}", direction);
         
@@ -521,7 +512,7 @@ fn main() {
         }
     }
 
-    eprintln!("  -- created {} rects", areas_plotted);
+    eprintln!("plotting {} rectangles, limit was {}", areas_plotted, plot_limit);
 
     let mut document = Document::new()
                         .set("viewBox", (0, 0, WIDTH, HEIGHT))
@@ -531,7 +522,7 @@ fn main() {
         document.append(g);
     }
 
-    eprintln!("-- creating output files");
+    //eprintln!("-- creating output files");
 
     svg::save("html/image.svg", &document).unwrap();
     let output_fn = format!("output/{}.svg", Path::new(matches.value_of("address-file").unwrap()).file_stem().unwrap().to_str().unwrap());
@@ -552,7 +543,5 @@ fn main() {
 
     let mut html_file = File::create("html/index.html").unwrap();
     html_file.write_all(&html.as_bytes()).unwrap();
-
-    eprintln!("-- done!");
 
 }
