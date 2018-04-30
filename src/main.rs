@@ -567,7 +567,7 @@ fn main() {
 
     //eprintln!("-- creating output files");
 
-    let output_fn = format!("output/{}.svg", Path::new(matches.value_of("address-file").unwrap()).to_str().unwrap());
+    let output_fn = format!("output/{}.svg", Path::new(matches.value_of("address-file").unwrap()).file_name().unwrap().to_str().unwrap());
     eprintln!("creating {}", output_fn);
     svg::save(output_fn, &document).unwrap();
 
