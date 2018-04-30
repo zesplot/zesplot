@@ -567,7 +567,21 @@ fn main() {
 
     //eprintln!("-- creating output files");
 
-    let output_fn = format!("output/{}.svg", Path::new(matches.value_of("address-file").unwrap()).file_name().unwrap().to_str().unwrap());
+    let output_fn_sized = if matches.is_present("unsized-rectangles") {
+        "unsized"
+    } else {
+        "sized"
+    };
+    let output_fn_filtered = if matches.is_present("filter-empty-prefixes") {
+        "filtered"
+    } else {
+        "unfiltered"
+    };
+    let output_fn = format!("output/{}.{}.{}.{}.svg", Path::new(matches.value_of("address-file").unwrap()).file_name().unwrap().to_str().unwrap(),
+        matches.value_of("color-input").unwrap_or(COLOR_INPUT),
+        output_fn_sized,
+        output_fn_filtered
+        );
     eprintln!("creating {}", output_fn);
     svg::save(output_fn, &document).unwrap();
 
