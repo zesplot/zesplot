@@ -3,6 +3,7 @@
 mod treemap;
 use treemap::{Area,Row,Route};
 
+use std::collections::HashSet;
 
 extern crate colored;
 use colored::*;
@@ -48,6 +49,7 @@ use rand::{thread_rng, sample};
 const WIDTH: f64 = 160.0;
 const HEIGHT: f64 = 100.0;
 const PLOT_LIMIT: u64 = 2000;
+const COLOR_INPUT: &str = "hits";
 
 
 
@@ -135,7 +137,7 @@ struct ZmapRecord {
 //    success: u8,
 }
 
-
+#[derive(Eq,PartialEq,Hash)]
 pub struct DataPoint {
     ip6: Ipv6Addr,
     meta: u32, // meta value, e.g. TTL
@@ -192,6 +194,21 @@ fn main() {
                              .long("filter")
                              .help("Filter out empty prefixes, only plotting prefixes containing addresses from the --addressess")
                         )
+                        .arg(Arg::with_name("unsized-rectangles")
+                             .short("u")
+                             .long("unsized")
+                             .help("Do not size the rectangles based on prefix length, but size them all equally")
+                        )
+                        .arg(Arg::with_name("color-input")
+                             .short("c")
+                             .long("color-input")
+                             .help("Base the colours on any of the following:
+                                \"hits\" (default)
+                                \"hw\" (average hamming weight in prefix)
+                                \"ttl\" (average TTL of responses in prefix, only when using ZMAP input)")
+                             .takes_value(true)
+                             .required(true)
+                        )
                         .arg(Arg::with_name("draw-hits")
                              .short("d")
                              .long("draw-hits")
@@ -209,6 +226,10 @@ fn main() {
 
     //let mut datapoints: Vec<DataPoint> = Vec::new();
     let mut datapoints: Vec<DataPoint> = Vec::with_capacity(5_000_000);
+    //TODO: do we want to filter duplicate addresses from the input file?
+    // the current test file contains ~2k duplicates on 4.6M entries
+    let mut uniq_ip6s: HashSet<Ipv6Addr> = HashSet::new();
+    let mut uniq_dps: HashSet<DataPoint> = HashSet::new();
 
     let mut now = Instant::now();
     if matches.value_of("address-file").unwrap().contains(".csv") {
@@ -224,6 +245,15 @@ fn main() {
                     meta: z.ttl.into()
                 }
             );
+            uniq_dps.insert(
+                DataPoint { 
+                    ip6: z.saddr.parse().unwrap(),
+                    meta: z.ttl.into()
+                }
+            );
+            if !uniq_ip6s.insert(z.saddr.parse().unwrap()) {
+                //eprintln!("duplicate: {}", z.saddr.parse::<Ipv6Addr>().unwrap());
+            }
         }
         
 
@@ -274,6 +304,8 @@ fn main() {
 
     eprintln!("[TIME] file read: {}.{:.2}s", now.elapsed().as_secs(),  now.elapsed().subsec_nanos() / 1_000_000);
 
+    eprintln!("uniq_ip6s: {}", uniq_ip6s.len());
+    eprintln!("uniq_dps: {}", uniq_dps.len());
 
     now = Instant::now();
     let table = prefixes_from_file(matches.value_of("prefix-file").unwrap()).unwrap();
@@ -301,11 +333,12 @@ fn main() {
     let mut max_meta = 0f64; // based on DataPoint.meta, e.g. TTL
     let mut max_hamming_weight = 0f64;
     let mut total_area = 0_u128;
+    let unsized_rectangles = matches.is_present("unsized-rectangles");
     
     // sum up the sizes of all the prefixes:
     // and find the max hits for the colour scale
     for (_,_,r) in table.iter() {
-        total_area += r.size();
+        total_area += r.size(unsized_rectangles);
         if r.datapoints.len() > max_hits {
             max_hits = r.datapoints.len();
         }
@@ -326,7 +359,7 @@ fn main() {
     if matches.is_present("filter-empty-prefixes") {
         let pre_filter_len = routes.len();
         routes.retain(|r| r.datapoints.len() > 0);
-        total_area = routes.iter().fold(0, |mut s, r|{s += r.size(); s});
+        total_area = routes.iter().fold(0, |mut s, r|{s += r.size(unsized_rectangles); s});
         eprintln!("filtered {} empty prefixes, left: {}", pre_filter_len - routes.len(), routes.len());
     } else {
         eprintln!("no filtering of empty prefixes");
@@ -368,7 +401,7 @@ fn main() {
     routes.sort_by(|a, b| b.prefix_len().cmp(&a.prefix_len()).reverse().then(a.asn.cmp(&b.asn))  );
 
     for r in routes {
-        areas.push(Area::new(r.size() as f64 * norm_factor, init_ar, r  ));
+        areas.push(Area::new(r.size(unsized_rectangles) as f64 * norm_factor, init_ar, r  ));
     }
 
 
@@ -435,18 +468,24 @@ fn main() {
                 border = 0.4;
             }
 
-            let rect = Rectangle::new()
+            let mut rect = Rectangle::new()
                 .set("x", area.x)
                 .set("y", area.y)
                 .set("width", area.w)
                 .set("height", area.h)
                 //.set("fill", color(area.route.datapoints.len() as u32, max_hits as u32)) 
-                .set("fill", color(area.route.hw_avg() as u32, max_hamming_weight as u32)) 
+                //.set("fill", color(area.route.hw_avg() as u32, max_hamming_weight as u32)) 
                 //.set("fill", color(area.route.dp_avg() as u32, max_meta as u32)) 
                 .set("stroke-width", border)
                 .set("stroke", "black")
                 .set("opacity", 1.0)
                 ;
+
+            let rect = match matches.value_of("color-input").unwrap_or(COLOR_INPUT) {
+                "hw"    => rect.set("fill", color(area.route.hw_avg() as u32, max_hamming_weight as u32)),
+                "ttl"   => rect.set("fill", color(area.route.dp_avg() as u32, max_meta as u32)),
+                "hits"|_  => rect.set("fill", color(area.route.datapoints.len() as u32, max_hits as u32)),
+            };
             group.append(rect);
 
             if matches.is_present("draw-hits") {

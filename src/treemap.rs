@@ -29,7 +29,15 @@ pub struct Route {
 }
 
 impl Route {
-    pub fn size(&self) -> u128 {
+    pub fn size(&self, unsized_rectangles: bool) -> u128 {
+        if unsized_rectangles {
+            return 1u128
+        } else {
+            self.__size()
+        }
+    }
+
+    pub fn __size(&self) -> u128 {
         //FIXME: this is just a workaround.. is there a better way to do this?
         let mut exp = self.prefix.prefix() as u32;
         if exp < 24 {
