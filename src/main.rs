@@ -220,6 +220,10 @@ fn main() {
                              .help(&format!("Limits number of areas plotted. 0 for unlimited. Default {}", PLOT_LIMIT))
                              .takes_value(true)
                         )
+                        .arg(Arg::with_name("create-html")
+                             .long("html")
+                             .help(&format!("Create HTML wrapper output in ./html"))
+                        )
                         .get_matches();
 
     eprintln!("-- reading input files");
@@ -563,24 +567,27 @@ fn main() {
 
     //eprintln!("-- creating output files");
 
-    svg::save("html/image.svg", &document).unwrap();
     let output_fn = format!("output/{}.svg", Path::new(matches.value_of("address-file").unwrap()).file_stem().unwrap().to_str().unwrap());
     eprintln!("creating {}", output_fn);
-    //svg::save(format!("output/{}.svg", matches.value_of("address-file").unwrap()), &document).unwrap();
     svg::save(output_fn, &document).unwrap();
-    let mut raw_svg = String::new();
-    BufReader::new(
-        File::open("html/image.svg").unwrap()
-    ).read_to_string(&mut raw_svg).unwrap();
 
-    let mut template = String::new();
-    BufReader::new(
-        File::open("html/index.html.template").unwrap()
-    ).read_to_string(&mut template).unwrap();
+    if matches.is_present("create-html") {
 
-    let html = template.replace("__SVG__", &raw_svg);
+        svg::save("html/image.svg", &document).unwrap();
+        let mut raw_svg = String::new();
+        BufReader::new(
+            File::open("html/image.svg").unwrap()
+        ).read_to_string(&mut raw_svg).unwrap();
 
-    let mut html_file = File::create("html/index.html").unwrap();
-    html_file.write_all(&html.as_bytes()).unwrap();
+        let mut template = String::new();
+        BufReader::new(
+            File::open("html/index.html.template").unwrap()
+        ).read_to_string(&mut template).unwrap();
+
+        let html = template.replace("__SVG__", &raw_svg);
+
+        let mut html_file = File::create("html/index.html").unwrap();
+        html_file.write_all(&html.as_bytes()).unwrap();
+    }
 
 }
