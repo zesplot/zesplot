@@ -70,11 +70,15 @@ fn color(i: u32, max: u32) -> String  {
     if i == 0 {
         "#eeeeee".to_string()
     } else {
-        let norm_factor = (1.0 / ((max as f32).log2() / 255.0)) as f32;
-        let v = (norm_factor *(i as f32).log2()) as u32;
-        //let norm_factor = (1.0 / ((max as f32) / 255.0)) as f32;
-        //let v = (norm_factor *(i as f32)) as u32;
-        format!("#{:02x}00{:02x}", v, 0xFF-v)
+        if max > 1024 {
+            let norm_factor = (1.0 / ((max as f32).log2() / 255.0)) as f32;
+            let v = (norm_factor *(i as f32).log2()) as u32;
+            format!("#{:02x}00{:02x}", v, 0xFF-v)
+        } else {
+            let norm_factor = (1.0 / ((max as f32) / 255.0)) as f32;
+            let v = (norm_factor *(i as f32)) as u32;
+            format!("#{:02x}00{:02x}", v, 0xFF-v)
+        }
     }
 }
 
