@@ -139,6 +139,13 @@ struct ZmapRecord {
 //    timestamp_ts: u64,
 //    timestamp_us: u32,
 //    success: u8,
+    tcpmss: u16
+}
+
+#[derive(Debug,CSVParsable)] //Deserialize
+struct ZmapRecordTcpmss {
+    saddr: String,
+    tcpmss: u16
 }
 
 #[derive(Eq,PartialEq,Hash)]
@@ -209,6 +216,7 @@ fn main() {
                              .help("Base the colours on any of the following:
                                 \"hits\" (default)
                                 \"hw\" (average hamming weight in prefix)
+                                \"mss\" (average TCP MSS in prefix)
                                 \"ttl\" (average TTL of responses in prefix, only when using ZMAP input)")
                              .takes_value(true)
                              .required(true)
@@ -244,25 +252,51 @@ fn main() {
         // expect ZMAP output as input
         
         let mut rdr = csv::Reader::from_file(matches.value_of("address-file").unwrap()).unwrap();
-        let iter = CSVIterator::<ZmapRecord,_>::new(&mut rdr).unwrap();
-        for zmap_record in iter {
-            let z = zmap_record.unwrap();
-            datapoints.push(
-                DataPoint { 
-                    ip6: z.saddr.parse().unwrap(),
-                    meta: z.ttl.into()
+        //let iter = CSVIterator::<ZmapRecord,_>::new(&mut rdr).unwrap();
+        match matches.value_of("color-input").unwrap() {
+            "mss" => {
+                let iter = CSVIterator::<ZmapRecordTcpmss,_>::new(&mut rdr).unwrap();
+                for zmap_record in iter {
+                    let z = zmap_record.unwrap();
+                    datapoints.push(
+                        DataPoint { 
+                            ip6: z.saddr.parse().unwrap(),
+                            meta: z.tcpmss.into()
+                        }
+                    );
                 }
-            );
-            uniq_dps.insert(
-                DataPoint { 
-                    ip6: z.saddr.parse().unwrap(),
-                    meta: z.ttl.into()
+            }
+            "ttl"|_ => {
+                let iter = CSVIterator::<ZmapRecord,_>::new(&mut rdr).unwrap();
+                for zmap_record in iter {
+                    let z = zmap_record.unwrap();
+                    datapoints.push(
+                        DataPoint { 
+                            ip6: z.saddr.parse().unwrap(),
+                            meta: z.ttl.into()
+                        }
+                    );
                 }
-            );
-            if !uniq_ip6s.insert(z.saddr.parse().unwrap()) {
-                //eprintln!("duplicate: {}", z.saddr.parse::<Ipv6Addr>().unwrap());
             }
         }
+        //for zmap_record in iter {
+        //    let z = zmap_record.unwrap();
+        //    datapoints.push(
+        //        DataPoint { 
+        //            ip6: z.saddr.parse().unwrap(),
+        //            meta: z.tcpmss.into()
+        //        }
+        //    );
+        //    //uniq_dps.insert(
+        //    //    DataPoint { 
+        //    //        ip6: z.saddr.parse().unwrap(),
+        //    //        meta: z.ttl.into()
+        //    //    }
+        //    //);
+        //    //if !uniq_ip6s.insert(z.saddr.parse().unwrap()) {
+        //    //    //eprintln!("duplicate: {}", z.saddr.parse::<Ipv6Addr>().unwrap());
+        //    //}
+        //}
         
 
         // attempt at improving read speed:
@@ -490,9 +524,9 @@ fn main() {
                 ;
 
             let rect = match matches.value_of("color-input").unwrap_or(COLOR_INPUT) {
-                "hw"    => rect.set("fill", color(area.route.hw_avg() as u32, max_hamming_weight as u32)),
-                "ttl"   => rect.set("fill", color(area.route.dp_avg() as u32, max_meta as u32)),
-                "hits"|_  => rect.set("fill", color(area.route.datapoints.len() as u32, max_hits as u32)),
+                "hw"        => rect.set("fill", color(area.route.hw_avg() as u32, max_hamming_weight as u32)),
+                "ttl"|"mss" => rect.set("fill", color(area.route.dp_avg() as u32, max_meta as u32)),
+                "hits"|_    => rect.set("fill", color(area.route.datapoints.len() as u32, max_hits as u32)),
             };
             group.append(rect);
 
