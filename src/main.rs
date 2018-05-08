@@ -22,6 +22,7 @@ extern crate treebitmap;
 use treebitmap::{IpLookupTable, IpLookupTableOps};
 use std::io;
 
+use std::process::exit;
 
 extern crate svg;
 extern crate ipnetwork;
@@ -236,6 +237,10 @@ fn main() {
                              .long("html")
                              .help(&format!("Create HTML wrapper output in ./html"))
                         )
+                        .arg(Arg::with_name("create-prefixes")
+                             .long("create-prefixes")
+                             .help(&format!("Create file containing prefixes based on hits from address-file, and exit"))
+                        )
                         .get_matches();
 
     eprintln!("-- reading input files");
@@ -370,6 +375,7 @@ fn main() {
         eprintln!("{}", s);
     }
 
+
     // maximum values to determine colour scale later on
     let mut max_hits = 0;
     let mut max_meta = 0f64; // based on DataPoint.meta, e.g. TTL
@@ -405,6 +411,19 @@ fn main() {
         eprintln!("filtered {} empty prefixes, left: {}", pre_filter_len - routes.len(), routes.len());
     } else {
         eprintln!("no filtering of empty prefixes");
+    }
+
+    if matches.is_present("create-prefixes") {
+        routes.retain(|r| r.datapoints.len() > 0);
+        let prefix_output_fn = format!("output/{}.prefixes",
+                    Path::new(matches.value_of("address-file").unwrap()).file_name().unwrap().to_str().unwrap(),
+        );
+        eprintln!("creating prefix file {}", prefix_output_fn);
+        let mut file = File::create(prefix_output_fn).unwrap();
+        for r in routes {
+            writeln!(file, "{} {}", r.prefix, r.asn);
+        }
+        exit(0);
     }
 
     /*
