@@ -140,7 +140,7 @@ struct ZmapRecord {
 //    timestamp_ts: u64,
 //    timestamp_us: u32,
 //    success: u8,
-    tcpmss: u16
+    //tcpmss: u16
 }
 
 #[derive(Debug,CSVParsable)] //Deserialize
