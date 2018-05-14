@@ -460,6 +460,7 @@ fn main() {
     }
     println!("---");
 
+/*
     for r in &routes {
 
         println!("{:?}", r.prefix);
@@ -522,6 +523,7 @@ fn main() {
         println!("{:?}", p.network);
 
     }
+*/
 
 
 

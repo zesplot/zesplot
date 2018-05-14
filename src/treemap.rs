@@ -39,7 +39,8 @@ pub fn specs_to_hier(specifics: &Vec<Specific>) -> Vec<Specific> {
                 //return vec![Specific { network: current_specific.network, specifics: specs_to_hier(&rest[i..].to_vec())}];
                 println!("creating remaining_specs with {:?}", s.network);
                 current_specific = s;
-                remaining_specs = vec![Specific { network: s.network, specifics: specs_to_hier(&rest[i+1..].to_vec())}];
+                //remaining_specs = vec![Specific { network: s.network, specifics: specs_to_hier(&rest[i+1..].to_vec())}];
+                remaining_specs = rest[i..].to_vec();
                 println!("  post remaining_specs");
                 break;
             }
@@ -56,7 +57,8 @@ pub fn specs_to_hier(specifics: &Vec<Specific>) -> Vec<Specific> {
 
         // trying add:
         let mut result = vec![Specific { network: first.network, specifics: specs_to_hier(&nested_specs) }];
-        result.append(&mut remaining_specs); //?
+        let mut result_remaining = specs_to_hier(&remaining_specs);
+        result.append(&mut result_remaining); //?
         result
 
         // attempt 2:
