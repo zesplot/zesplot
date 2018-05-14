@@ -2,8 +2,10 @@
 
 mod treemap;
 use treemap::{Area,Row,Route};
+use treemap::*;
 
 use std::collections::HashSet;
+use std::collections::HashMap;
 
 extern crate colored;
 use colored::*;
@@ -385,7 +387,7 @@ fn main() {
     
     // sum up the sizes of all the prefixes:
     // and find the max hits for the colour scale
-    for (_,_,r) in table.iter() {
+    for (_,pfl,r) in table.iter() {
         total_area += r.size(unsized_rectangles);
         if r.datapoints.len() > max_hits {
             max_hits = r.datapoints.len();
@@ -402,6 +404,19 @@ fn main() {
     //eprintln!("max_meta: {}", max_meta);
     //eprintln!("max_hamming_weight: {}", max_hamming_weight);
 
+
+
+
+    // trying to find hierarchy
+
+    //for (_,_,e) in table.iter() {
+    //    println!("{:?}", e.prefix);
+    //}
+
+
+
+    // EO trying to find hierarchy
+
     let mut routes: Vec<Route> = table.into_iter().map(|(_,_,r)| r).collect();
 
     if matches.is_present("filter-empty-prefixes") {
@@ -412,6 +427,103 @@ fn main() {
     } else {
         eprintln!("no filtering of empty prefixes");
     }
+
+    //routes.reverse();
+    let mut current_asn = "AS_NONE".to_owned();
+    let mut current_prefix_len = 129;
+    let mut hier_prefixes: Vec<treemap::Prefix> = Vec::new();
+    let mut last_new_prefix = routes.first().unwrap().prefix;
+    //let mut current_prefix = treemap::Prefix {} ;
+    let mut prev_network: Ipv6Network = "2001:db7::/32".parse().unwrap();
+    let mut hier_map: HashMap<Ipv6Network, Vec<Ipv6Network>> = HashMap::new();
+    let mut hier_map_l2: HashMap<Ipv6Network, Vec<Ipv6Network>> = HashMap::new();
+    hier_map.insert(prev_network, Vec::new());
+    //let specifics: Vec<Specific>  = vec_to_hier(&routes);
+    let specifics: Vec<Specific>  = route_to_specifics(&routes);
+    println!("---");
+    println!("{:?}", specifics);
+    println!("---");
+    for s in &specifics {
+        println!("{}", s.network);
+        for s2 in &s.specifics {
+            println!("  {}", s2.network);
+            for s3 in &s2.specifics {
+                println!("    {}", s3.network);
+                for s4 in &s3.specifics {
+                    println!("      {}", s4.network);
+                    for s5 in &s4.specifics {
+                        println!("        {}", s5.network);
+                    }
+                }
+            }
+        }
+    }
+    println!("---");
+
+    for r in &routes {
+
+        println!("{:?}", r.prefix);
+        if prev_network.contains(r.prefix.ip()) {
+            println!("got a more specific");
+            hier_map.get_mut(&prev_network).unwrap().push(r.prefix);
+        } else {
+            println!("got something new");
+            // first, take prev_network from hier_map and recurse
+            //{
+            //let hierl2 = hier_map.get_mut(&prev_network).unwrap();
+            //{
+            //let rl2_tmp = hierl2.first().unwrap();
+            //hier_map_l2.insert(*rl2_tmp, Vec::new());
+            //}
+            //let prev_network = hierl2.first().unwrap();
+            //for rl2 in hierl2 {
+            //    if prev_network.contains(rl2.ip()) {
+            //        println!("got a more specific on l2");
+            //        hier_map_l2.get_mut(&prev_network).unwrap().push(*rl2);
+            //        
+            //    } else {
+            //        hier_map_l2.insert(*rl2, Vec::new());
+            //        prev_network = rl2;
+            //    }
+
+            //}
+            //}
+
+            // then, add a new prefix and continue from there
+            hier_map.insert(r.prefix, Vec::new());
+            prev_network = r.prefix;
+        }
+        //println!("{:?}", r.prefix);
+        //if current_asn == r.asn && r.prefix_len() > current_prefix_len {
+        //    println!("{:?}  is more specific", r.prefix_len());
+        //    hier_prefixes.last_mut().unwrap().specifics.push(treemap::Prefix {
+        //        network: r.prefix,
+        //        asn: r.asn.clone(),
+        //        specifics: Vec::new()
+        //    });
+        //} else {
+        //    // new Prefix
+        //    println!("new Prefix");
+        //    println!("child or sibling of {:?}?", last_new_prefix);
+        //    hier_prefixes.push(treemap::Prefix {
+        //        network: r.prefix,
+        //        asn: r.asn.clone(),
+        //        specifics: Vec::new()
+        //    });
+
+        //}
+        //current_asn = r.asn.clone();
+        //current_prefix_len = r.prefix_len();
+        //prev_network = r.prefix;
+    }
+    //routes.reverse();
+
+    for p in &hier_prefixes {
+        println!("{:?}", p.network);
+
+    }
+
+
 
     if matches.is_present("create-prefixes") {
         routes.retain(|r| r.datapoints.len() > 0);

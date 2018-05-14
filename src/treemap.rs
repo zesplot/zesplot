@@ -1,6 +1,124 @@
 use ipnetwork::Ipv6Network;
 use std::net::Ipv6Addr;
 
+pub struct Prefix {
+    pub network: Ipv6Network,
+    pub asn: String,
+    pub specifics: Vec<Specific>
+}
+
+#[derive(Debug, Clone)]
+pub struct Specific {
+    pub network: Ipv6Network,
+    pub specifics: Vec<Specific>
+}
+
+
+pub fn specs_to_hier(specifics: &Vec<Specific>) -> Vec<Specific> {
+    println!("in specs_to_hier");
+    let mut current_specific: &Specific;
+    if let Some((first, rest)) = specifics.split_first() {
+        println!("first: {:?}", first.network);
+        current_specific = first;
+        let mut nested_specs: Vec<Specific> = Vec::new();
+        let mut remaining_specs: Vec<Specific> = Vec::new();
+        for (i, s) in rest.iter().enumerate() {
+            if current_specific.network.contains(s.network.ip()) {
+                println!("nested s: {:?}", s.network);
+                nested_specs.push(s.clone());
+            } else {
+                //println!("new sub in s: {:?}", s.network);
+                //println!(" -- nested_specs --");
+                //specs_to_hier(&nested_specs);
+                //println!(" ---- EO nested_specs --");
+                //println!(" -- rest specs --");
+                //specs_to_hier(&rest[i..].to_vec()); // <-- is this the remainder of the iterator???
+
+                // this kills the current function
+                // save it in remaining_specs, add it in later?
+                //return vec![Specific { network: current_specific.network, specifics: specs_to_hier(&rest[i..].to_vec())}];
+                println!("creating remaining_specs with {:?}", s.network);
+                current_specific = s;
+                remaining_specs = vec![Specific { network: s.network, specifics: specs_to_hier(&rest[i+1..].to_vec())}];
+                println!("  post remaining_specs");
+                break;
+            }
+
+        }
+        println!(" -- nested_specs, current_specific: {:?} --", first.network);
+        //specs_to_hier(&nested_specs);
+        //specs_to_hier(&nested_specs)
+        //println!(" ---- EO nested_specs --");
+
+        // add in remaining_specs here?
+        //vec![Specific { network: first.network, specifics: specs_to_hier(&nested_specs) }] // this works
+
+
+        // trying add:
+        let mut result = vec![Specific { network: first.network, specifics: specs_to_hier(&nested_specs) }];
+        result.append(&mut remaining_specs); //?
+        result
+
+        // attempt 2:
+        //let mut resulting_specifics = specs_to_hier(&nested_specs);
+        //resulting_specifics.append(&mut remaining_specs);
+        //let result = vec![Specific { network: first.network, specifics: resulting_specifics }];
+        //result
+
+    } else {
+        println!("could not satisfy Some(), len of specifics: {}", specifics.len());
+        // so, there is only one? specific left in the vector
+        // not necessarily, check
+        //return specifics.first().unwrap() // are we sure this is there?
+        //vec![specifics.first().unwrap().clone()]
+        vec![]
+    }
+}
+
+//problem: we need to cut up the vec of Routes and call specs_to_hier for every subset
+// every subset contains one subtrie of the trie
+// so once specs_to_hier terminates, we have one full subtrie
+// then, we can push all the subtries to a Vec again
+pub fn route_to_specifics(routes: &Vec<Route>) -> Vec<Specific> {
+    specs_to_hier(&routes.iter().map(|r| Specific {network: r.prefix, specifics: Vec::new() } ).collect())
+}
+
+//pub fn vec_to_hier(routes: Vec<Route>) -> Option<Prefix> {
+pub fn _vec_to_hier(routes: &Vec<Route>) -> Vec<Specific> {
+    if routes.len() == 1 {
+        //Some( Prefix { network: routes.first().unwrap().prefix, asn: routes.first().unwrap().asn, specifics: Vec::new() } );
+    } else {
+        let mut current_route: &Route;
+        if let Some((first, rest)) = routes.split_first() {
+            println!("first: {:?}", first.prefix);
+            current_route = first;
+            let mut specifics: Vec<Specific> = Vec::new();
+            for r in rest {
+                if current_route.prefix.contains(r.prefix.ip()) {
+                    // more specific
+                    println!("more specific: {:?}", r.prefix);
+                    specifics.push(Specific {network: r.prefix, specifics: Vec::new()});
+                } else {
+                    // new prefix
+                    println!("new prefix: {:?}", r.prefix);
+
+                    // process specifics of previous first
+                    //for s in &specifics {
+                    //    println!("s: {:?}", s.network);
+                    //}
+                    println!("calling specs_to_hier");
+                    return specs_to_hier(&specifics);
+
+                    //continue
+                    //vec_to_hier(&rest.to_vec());
+                }
+            }
+       
+    }
+}
+    println!("vec_to_hier, returning empty vec");
+    vec![]
+}
 
 pub struct Area {
     pub x: f64,
