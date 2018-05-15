@@ -1,11 +1,11 @@
 use ipnetwork::Ipv6Network;
 use std::net::Ipv6Addr;
 
-pub struct Prefix {
-    pub network: Ipv6Network,
-    pub asn: String,
-    pub specifics: Vec<Specific>
-}
+//pub struct Prefix {
+//    pub network: Ipv6Network,
+//    pub asn: String,
+//    pub specifics: Vec<Specific>
+//}
 
 #[derive(Debug, Clone)]
 pub struct Specific {
@@ -20,7 +20,7 @@ impl Specific {
     }
 }
 
-
+/*
 pub fn specs_to_hier(specifics: &Vec<Specific>) -> Vec<Specific> {
     println!("in specs_to_hier");
     let mut current_specific: &Specific;
@@ -65,7 +65,9 @@ pub fn specs_to_hier(specifics: &Vec<Specific>) -> Vec<Specific> {
         vec![]
     }
 }
+*/
 
+/*
 pub fn specs_to_hier_with_rest(specifics: &Vec<Specific>) -> (Vec<Specific>, Vec<Specific>) {
     let mut current_specific: &Specific;
     if let Some((first, rest)) = specifics.split_first() {
@@ -88,47 +90,44 @@ pub fn specs_to_hier_with_rest(specifics: &Vec<Specific>) -> (Vec<Specific>, Vec
     }
     (vec![], vec![])
 }
+*/
 
 pub fn specs_to_hier_with_rest_index(specifics: &Vec<Specific>, index: usize) -> (Vec<Specific>, usize) {
-    println!("specs_rest_index, len {} start from {}", specifics.len(), index);
-    let mut current_specific: &Specific;
+    //println!("specs_rest_index, len {} start from {}", specifics.len(), index);
+    let current_specific: &Specific;
     if let Some((first, rest)) = specifics[index..].split_first() {
         current_specific = first;
         if rest.len() == 0 {
-            println!("NO REST, returning {}", first.network.ip());
+            //println!("NO REST, returning {}", first.network.ip());
             return (vec![first.clone()], 1);
         }
 
-        println!("first : {:?}", first.network);
+        //println!("first : {:?}", first.network);
         let mut nested_specs: Vec<Specific> = Vec::new();
         let mut consumed_specs = 1;
-        //let mut remaining_specs: Vec<Specific> = Vec::new();
-        for (i, s) in rest.iter().enumerate() {
+        //for (_, s) in rest.iter().enumerate() {
+        for s in rest.iter() {
             if current_specific.network.contains(s.network.ip()) {
-                println!("  in current: {}", s.network.ip());
+                //println!("  in current: {}", s.network.ip());
                 nested_specs.push(s.clone());
                 consumed_specs += 1;
             } else {
-                println!("  NOT in current: {}", s.network.ip());
-                //current_specific = s;
-                //remaining_specs = rest[i..].to_vec();
-
-                //consumed_specs += 1;
+                //println!("  NOT in current: {}", s.network.ip());
                 break;
             }
 
         }
 
-        println!("result for network {:?}, {} nested, {} consumed",
-                    first.network, nested_specs.len(), consumed_specs);
-        let result = if true || nested_specs.len() > 1 {
-            vec![Specific { network: first.network, datapoints: first.datapoints.clone(),
-                specifics: specs_to_hier2(&nested_specs) }]
-            } else {
-            println!("HIT ELSE");
-            vec![Specific { network: first.network, datapoints: first.datapoints.clone(),
-                specifics: nested_specs }]
-            };
+        //println!("result for network {:?}, {} nested, {} consumed", first.network, nested_specs.len(), consumed_specs);
+        //let result = if true || nested_specs.len() > 1 {
+        //    vec![Specific { network: first.network, datapoints: first.datapoints.clone(),
+        //        specifics: specs_to_hier2(&nested_specs) }]
+        //    } else {
+        //        vec![Specific { network: first.network, datapoints: first.datapoints.clone(),
+        //            specifics: nested_specs }]
+        //    };
+        let result = vec![Specific { network: first.network, datapoints: first.datapoints.clone(),
+                specifics: specs_to_hier2(&nested_specs) }];
         return (result, consumed_specs)
     } else {
         println!("could not satisfy Some(), len: {}", specifics.len());
@@ -138,68 +137,41 @@ pub fn specs_to_hier_with_rest_index(specifics: &Vec<Specific>, index: usize) ->
 }
 
 pub fn specs_to_hier2(specifics: &Vec<Specific>) -> Vec<Specific> {
-    println!("specs_to_hier2, specifics.len(): {} ", specifics.len());
+    //println!("specs_to_hier2, specifics.len(): {} ", specifics.len());
     let mut done = false;
     let mut all_results: Vec<Specific> = vec![];
-    //let mut rest = specifics.clone();
     let mut start_from = 0;
-    let mut result: Vec<Specific>;
-
     
     if specifics.len() == 0 {
-        println!("early done 0");
-        //done = true;
+        //println!("early done 0");
         return vec![];
     }
     
     if specifics.len() == 1 {
-        println!("early done 1 for {:?}", specifics.first().unwrap());
-        //done = true;
-        //return vec![];
+        //println!("early done 1 for {:?}", specifics.first().unwrap());
         return specifics.clone();
     }
     
     while !done {
         let (mut result, num_consumed) = specs_to_hier_with_rest_index(&specifics, start_from);
-        if result.len() == 1 {
-            println!("got single result: {}", result.first().unwrap().network.ip());
-        }
-        //println!("len and start_from: {}/{}", specifics.len(), start_from);
-        //println!("got result.len() and num_consumed: {} , {}", result.len(), num_consumed);
         if result.len() == 0 && num_consumed  == 0 {
             done = true;
         }
         start_from += num_consumed;
         if specifics.len() == start_from + 0 {
-            println!("len == start_from + 1: {} == {} done", specifics.len(), start_from + 1);
             done = true;
-        } else {
-            eprintln!("start_from : {}", start_from);
         }
         all_results.append(&mut result);
     }
     
-    /*
-    while !done {
-        let (mut result, tail) = specs_to_hier_with_rest(&specifics[start_from..].to_vec());
-        if tail.len() == 0 {
-            done = true;
-        } else {
-            //rest = tail.clone();
-            start_from += result.len();
-            eprintln!("start_from : {}", start_from);
-        }
-        all_results.append(&mut result);
-    }
-    */
     all_results
 }
 
-pub fn route_to_specifics2(routes: &Vec<Route>) -> Vec<Specific> {
+pub fn __route_to_specifics2(routes: &Vec<Route>) -> Vec<Specific> {
     specs_to_hier2(&routes.iter().map(|r| Specific {network: r.prefix, datapoints: r.datapoints.clone(), specifics: Vec::new() } ).collect())
 }
 
-pub fn route_to_specifics(routes: &Vec<Route>) -> Vec<Specific> {
+pub fn __route_to_specifics(routes: &Vec<Route>) -> Vec<Specific> {
     //specs_to_hier(&routes.iter().map(|r| Specific {network: r.prefix, datapoints: r.datapoints.clone(), specifics: Vec::new() } ).collect())
     //specs_to_hier(&routes.iter().map(|r| Specific {network: r.prefix, datapoints: Vec::new(), specifics: Vec::new() } ).collect())
     let mut specs: Vec<Specific> = Vec::new();

@@ -438,12 +438,6 @@ fn main() {
     //eprintln!("max_hamming_weight: {}", max_hamming_weight);
 
     let mut routes: Vec<Route> = table.into_iter().map(|(_,_,r)| r).collect();
-    //let specifics: Vec<Specific>  = route_to_specifics(&routes);
-    //let specifics: Vec<Specific>  = route_to_specifics(&routes);
-    //let specifics: Vec<Specific>  = route_to_specifics(&routes);
-
-    //println!("specifics: {:?}", specifics);
-    //let specifics: Vec<Specific>  = specs_to_hier(&table2.into_iter().map(|(_,_,s)| s).collect());
     let specifics: Vec<Specific>  = specs_to_hier2(&table2.into_iter().map(|(_,_,s)| s).collect());
 
     if matches.is_present("filter-empty-prefixes") {
@@ -456,32 +450,25 @@ fn main() {
     }
 
     eprintln!("# of specifics: {}", specifics.len());
-    println!("---");
-    for s in &specifics {
-        println!("{}", s.network);
-        //println!("  {:?}", s.datapoints);
-        for s2 in &s.specifics {
-            println!("  {}", s2.network);
-            //println!("    {:?}", s2.datapoints);
-            for s3 in &s2.specifics {
-                println!("    {}", s3.network);
-                for s4 in &s3.specifics {
-                    println!("      {}", s4.network);
-                    for s5 in &s4.specifics {
-                        println!("        {}", s5.network);
-                    }
-                }
-            }
-        }
-    }
-    println!("---");
-
-    // TODO: try to fill up specific.datapoints after we are done with all the recursive stuff
-    // should be easier on the memory..
-    // but, table is already consumed because of into_iter() on r407
+    //println!("---");
     //for s in &specifics {
-    //    table.exact_match(s.network.ip(), s.network.prefix().into()).unwrap();
+    //    println!("{}", s.network);
+    //    println!("  {:?}", s.datapoints);
+    //    for s2 in &s.specifics {
+    //        println!("  {}", s2.network);
+    //        println!("    {:?}", s2.datapoints);
+    //        for s3 in &s2.specifics {
+    //            println!("    {}", s3.network);
+    //            for s4 in &s3.specifics {
+    //                println!("      {}", s4.network);
+    //                for s5 in &s4.specifics {
+    //                    println!("        {}", s5.network);
+    //                }
+    //            }
+    //        }
+    //    }
     //}
+    //println!("---");
 
     if matches.is_present("create-prefixes") {
         routes.retain(|r| r.datapoints.len() > 0);
