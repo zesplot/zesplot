@@ -127,6 +127,34 @@ fn prefixes_from_file<'a>(f: &'a str) -> io::Result<IpLookupTable<Ipv6Addr,Route
     Ok(table)
 }
 
+fn prefixes_from_file2<'a>(f: &'a str) -> io::Result<IpLookupTable<Ipv6Addr,Specific>> {
+    let mut file = File::open(f)?;
+    let mut s = String::new();
+    file.read_to_string(&mut s)?;
+    let mut table: IpLookupTable<Ipv6Addr,Specific> = IpLookupTable::new();
+    for line in s.lines() {
+        let parts = line.split_whitespace().collect::<Vec<&str>>();
+        //let route: Ipv6Network = parts[0].parse().unwrap();
+        if let Ok(route) = parts[0].parse::<Ipv6Network>(){
+
+            let asn = parts[1]; //.parse::<u32>();
+                table.insert(route.ip(), route.prefix().into(),
+                        Specific { network: route, datapoints: Vec::new(), specifics: Vec::new()});
+            // TODO remove parsing to u32 because of asn_asn,asn notation in pfx2as
+            //if let Ok(asn) = asn.parse::<u32>() {
+            //    table.insert(route.ip(), route.prefix().into(),
+            //            //Route { prefix: route, asn: asn.parse::<u32>().unwrap(), hits: Vec::new()});
+            //            Route { prefix: route, asn: asn, hits: Vec::new()});
+            //} else {
+            //    eprintln!("choked on {} while reading prefixes file", line);
+            //}
+        } else {
+                eprintln!("choked on {} while reading prefixes file", line);
+        }
+    }; 
+    Ok(table)
+}
+
 
 #[derive(Debug,CSVParsable)] //Deserialize
 struct ZmapRecord {
@@ -151,7 +179,7 @@ struct ZmapRecordTcpmss {
     tcpmss: u16
 }
 
-#[derive(Eq,PartialEq,Hash)]
+#[derive(Eq,PartialEq,Hash,Clone,Debug)]
 pub struct DataPoint {
     ip6: Ipv6Addr,
     meta: u32, // meta value, e.g. TTL
@@ -247,8 +275,8 @@ fn main() {
 
     eprintln!("-- reading input files");
 
-    //let mut datapoints: Vec<DataPoint> = Vec::new();
-    let mut datapoints: Vec<DataPoint> = Vec::with_capacity(5_000_000);
+    let mut datapoints: Vec<DataPoint> = Vec::new();
+    //let mut datapoints: Vec<DataPoint> = Vec::with_capacity(5_000_000);
     //TODO: do we want to filter duplicate addresses from the input file?
     // the current test file contains ~2k duplicates on 4.6M entries
     let mut uniq_ip6s: HashSet<Ipv6Addr> = HashSet::new();
@@ -358,6 +386,7 @@ fn main() {
 
     now = Instant::now();
     let table = prefixes_from_file(matches.value_of("prefix-file").unwrap()).unwrap();
+    let table2 = prefixes_from_file2(matches.value_of("prefix-file").unwrap()).unwrap();
 
     //eprintln!("-- matching /128s with prefixes");
 
@@ -365,12 +394,16 @@ fn main() {
     let mut prefix_mismatches = 0;
     for dp in datapoints.into_iter() {
         if let Some((_, _, r)) = table.longest_match(dp.ip6) {
-            r.push_dp(dp);
+            r.push_dp(dp.clone());
         } else {
             //eprintln!("could not match {:?}", dp.ip6);
             prefix_mismatches += 1;
         }
+        if let Some((_, _, r)) = table2.longest_match(dp.ip6) {
+            r.push_dp(dp);
+        }
     }
+    eprintln!("table 2 filled");
     
     if prefix_mismatches > 0 {
         let s = format!("Could not match {} addresses", prefix_mismatches).to_string().on_red().bold();
@@ -387,7 +420,7 @@ fn main() {
     
     // sum up the sizes of all the prefixes:
     // and find the max hits for the colour scale
-    for (_,pfl,r) in table.iter() {
+    for (_,_,r) in table.iter() {
         total_area += r.size(unsized_rectangles);
         if r.datapoints.len() > max_hits {
             max_hits = r.datapoints.len();
@@ -404,20 +437,14 @@ fn main() {
     //eprintln!("max_meta: {}", max_meta);
     //eprintln!("max_hamming_weight: {}", max_hamming_weight);
 
-
-
-
-    // trying to find hierarchy
-
-    //for (_,_,e) in table.iter() {
-    //    println!("{:?}", e.prefix);
-    //}
-
-
-
-    // EO trying to find hierarchy
-
     let mut routes: Vec<Route> = table.into_iter().map(|(_,_,r)| r).collect();
+    //let specifics: Vec<Specific>  = route_to_specifics(&routes);
+    //let specifics: Vec<Specific>  = route_to_specifics(&routes);
+    //let specifics: Vec<Specific>  = route_to_specifics(&routes);
+
+    //println!("specifics: {:?}", specifics);
+    //let specifics: Vec<Specific>  = specs_to_hier(&table2.into_iter().map(|(_,_,s)| s).collect());
+    let specifics: Vec<Specific>  = specs_to_hier2(&table2.into_iter().map(|(_,_,s)| s).collect());
 
     if matches.is_present("filter-empty-prefixes") {
         let pre_filter_len = routes.len();
@@ -428,25 +455,14 @@ fn main() {
         eprintln!("no filtering of empty prefixes");
     }
 
-    //routes.reverse();
-    let mut current_asn = "AS_NONE".to_owned();
-    let mut current_prefix_len = 129;
-    let mut hier_prefixes: Vec<treemap::Prefix> = Vec::new();
-    let mut last_new_prefix = routes.first().unwrap().prefix;
-    //let mut current_prefix = treemap::Prefix {} ;
-    let mut prev_network: Ipv6Network = "2001:db7::/32".parse().unwrap();
-    let mut hier_map: HashMap<Ipv6Network, Vec<Ipv6Network>> = HashMap::new();
-    let mut hier_map_l2: HashMap<Ipv6Network, Vec<Ipv6Network>> = HashMap::new();
-    hier_map.insert(prev_network, Vec::new());
-    //let specifics: Vec<Specific>  = vec_to_hier(&routes);
-    let specifics: Vec<Specific>  = route_to_specifics(&routes);
-    println!("---");
-    println!("{:?}", specifics);
+    eprintln!("# of specifics: {}", specifics.len());
     println!("---");
     for s in &specifics {
         println!("{}", s.network);
+        //println!("  {:?}", s.datapoints);
         for s2 in &s.specifics {
             println!("  {}", s2.network);
+            //println!("    {:?}", s2.datapoints);
             for s3 in &s2.specifics {
                 println!("    {}", s3.network);
                 for s4 in &s3.specifics {
@@ -460,72 +476,12 @@ fn main() {
     }
     println!("---");
 
-/*
-    for r in &routes {
-
-        println!("{:?}", r.prefix);
-        if prev_network.contains(r.prefix.ip()) {
-            println!("got a more specific");
-            hier_map.get_mut(&prev_network).unwrap().push(r.prefix);
-        } else {
-            println!("got something new");
-            // first, take prev_network from hier_map and recurse
-            //{
-            //let hierl2 = hier_map.get_mut(&prev_network).unwrap();
-            //{
-            //let rl2_tmp = hierl2.first().unwrap();
-            //hier_map_l2.insert(*rl2_tmp, Vec::new());
-            //}
-            //let prev_network = hierl2.first().unwrap();
-            //for rl2 in hierl2 {
-            //    if prev_network.contains(rl2.ip()) {
-            //        println!("got a more specific on l2");
-            //        hier_map_l2.get_mut(&prev_network).unwrap().push(*rl2);
-            //        
-            //    } else {
-            //        hier_map_l2.insert(*rl2, Vec::new());
-            //        prev_network = rl2;
-            //    }
-
-            //}
-            //}
-
-            // then, add a new prefix and continue from there
-            hier_map.insert(r.prefix, Vec::new());
-            prev_network = r.prefix;
-        }
-        //println!("{:?}", r.prefix);
-        //if current_asn == r.asn && r.prefix_len() > current_prefix_len {
-        //    println!("{:?}  is more specific", r.prefix_len());
-        //    hier_prefixes.last_mut().unwrap().specifics.push(treemap::Prefix {
-        //        network: r.prefix,
-        //        asn: r.asn.clone(),
-        //        specifics: Vec::new()
-        //    });
-        //} else {
-        //    // new Prefix
-        //    println!("new Prefix");
-        //    println!("child or sibling of {:?}?", last_new_prefix);
-        //    hier_prefixes.push(treemap::Prefix {
-        //        network: r.prefix,
-        //        asn: r.asn.clone(),
-        //        specifics: Vec::new()
-        //    });
-
-        //}
-        //current_asn = r.asn.clone();
-        //current_prefix_len = r.prefix_len();
-        //prev_network = r.prefix;
-    }
-    //routes.reverse();
-
-    for p in &hier_prefixes {
-        println!("{:?}", p.network);
-
-    }
-*/
-
-
+    // TODO: try to fill up specific.datapoints after we are done with all the recursive stuff
+    // should be easier on the memory..
+    // but, table is already consumed because of into_iter() on r407
+    //for s in &specifics {
+    //    table.exact_match(s.network.ip(), s.network.prefix().into()).unwrap();
+    //}
 
     if matches.is_present("create-prefixes") {
         routes.retain(|r| r.datapoints.len() > 0);
@@ -535,7 +491,7 @@ fn main() {
         eprintln!("creating prefix file {}", prefix_output_fn);
         let mut file = File::create(prefix_output_fn).unwrap();
         for r in routes {
-            writeln!(file, "{} {}", r.prefix, r.asn);
+            let _ = writeln!(file, "{} {}", r.prefix, r.asn);
         }
         exit(0);
     }
