@@ -438,7 +438,12 @@ fn main() {
     //eprintln!("max_hamming_weight: {}", max_hamming_weight);
 
     let mut routes: Vec<Route> = table.into_iter().map(|(_,_,r)| r).collect();
-    let specifics: Vec<Specific>  = specs_to_hier2(&table2.into_iter().map(|(_,_,s)| s).collect());
+    let mut specifics: Vec<Specific>  = specs_to_hier2(&table2.into_iter().map(|(_,_,s)| s).collect());
+
+
+
+
+
 
     if matches.is_present("filter-empty-prefixes") {
         let pre_filter_len = routes.len();
@@ -508,6 +513,7 @@ fn main() {
     let norm_factor = (WIDTH * HEIGHT) / total_area as f64;
 
     let mut areas: Vec<Area> = Vec::new();
+    //let mut areas2: Vec<Area2> = Vec::new();
 
     // sort by both size and ASN, so ASs are grouped in the final plot
     // FIXME size() is confusing:
@@ -520,14 +526,25 @@ fn main() {
     routes.sort_by(|a, b| b.prefix_len().cmp(&a.prefix_len()).reverse().then(a.asn.cmp(&b.asn))  );
 
     for r in routes {
-        areas.push(Area::new(r.size(unsized_rectangles) as f64 * norm_factor, init_ar, r  ));
+        //areas.push(Area::new(r.size(unsized_rectangles) as f64 * norm_factor, init_ar, r  ));
+    }
+
+    specifics.sort_by(|a, b| b.prefix_len().cmp(&a.prefix_len()).reverse().then(a.asn.cmp(&b.asn))  );
+
+    for s in specifics {
+        //println!("{}", s.network);
+        areas.push(Area::new(s.size(unsized_rectangles) as f64 * norm_factor, init_ar, s  ));
     }
 
 
 
+// NEW HIERACHICAL MODEL, try to visualize it now:
+
+
     let mut rows = Vec::new();
     //let (first_area, remaining_areas) = areas.split_first().unwrap();
-    let remaining_areas = areas.split_off(1); // FIXME crashes when there is only a single prefix
+    let remaining_areas = areas.split_off(1);   // FIXME crashes when there is only a single prefix.
+                                                // Maybe use if let Some() =  split_first()?
     let first_area = areas.pop().unwrap();
     let (mut new_row_x, mut new_row_y) = (0.0, 0.0);
     rows.push(Row::new(new_row_x, new_row_y, true, first_area));
@@ -535,6 +552,7 @@ fn main() {
 
     for a in remaining_areas {
 
+        // if try() returns an Area, it means the row/column was 'full'
         if let Some(area) = rows.last_mut().unwrap().try(a) {
 
             let cur_row_w = rows.last().unwrap().w ;
@@ -575,11 +593,12 @@ fn main() {
 
         for area in row.areas {
             let mut group = Group::new()
-                .set("data-asn", area.route.asn.to_string())
-                .set("data-prefix", area.route.prefix.to_string())
-                .set("data-hits", area.route.datapoints.len().to_string())
-                .set("data-dp-avg", format!("{:.1}", area.route.dp_avg()))
-                .set("data-hw-avg", format!("{:.1}", area.route.hw_avg()))
+                // FIXME route -> specific
+                //.set("data-asn", area.route.asn.to_string())
+                //.set("data-prefix", area.route.prefix.to_string())
+                //.set("data-hits", area.route.datapoints.len().to_string())
+                //.set("data-dp-avg", format!("{:.1}", area.route.dp_avg()))
+                //.set("data-hw-avg", format!("{:.1}", area.route.hw_avg()))
                 ;
 
             let mut border = 0.0005 * area.surface;
@@ -600,13 +619,49 @@ fn main() {
                 .set("opacity", 1.0)
                 ;
 
-            let rect = match matches.value_of("color-input").unwrap_or(COLOR_INPUT) {
-                "hw"        => rect.set("fill", color(area.route.hw_avg() as u32, max_hamming_weight as u32)),
-                "ttl"|"mss" => rect.set("fill", color(area.route.dp_avg() as u32, max_meta as u32)),
-                "hits"|_    => rect.set("fill", color(area.route.datapoints.len() as u32, max_hits as u32)),
-            };
-            group.append(rect);
+            //FIXME route -> specific
+            //let rect = match matches.value_of("color-input").unwrap_or(COLOR_INPUT) {
+            //    "hw"        => rect.set("fill", color(area.route.hw_avg() as u32, max_hamming_weight as u32)),
+            //    "ttl"|"mss" => rect.set("fill", color(area.route.dp_avg() as u32, max_meta as u32)),
+            //    "hits"|_    => rect.set("fill", color(area.route.datapoints.len() as u32, max_hits as u32)),
+            //};
+            let rect = rect.set("fill", "white");
+            //group.append(rect);
 
+// HIERARCHICAL STUFF ATTEMPT
+            //if area.specific.specifics.len() > 0 {
+            //    let mut sub_area_x = area.x;
+            //    let mut sub_area_y = area.y;
+            //    for s in &area.specific.specifics {
+            //        println!("parent size: {}", s.size(false) as f64 );
+            //        println!("sub size: {}", s.size(false) as f64 / area.specific.size(false) as f64);
+            //        //let sub_width = 2.0 * area.w * (s.size(false) as f64 / area.specific.size(false) as f64 ) ;
+            //        let sub_width = (area.w / area.specific.specifics.len() as f64);
+            //        let mut rect = Rectangle::new()
+            //            .set("x", sub_area_x)
+            //            .set("y", sub_area_y)
+            //            .set("width", sub_width)
+            //            .set("height", area.h / 2.0 )
+            //            //.set("stroke-width", border)
+            //            .set("stroke-width", border / 2.0)
+            //            .set("stroke", "black")
+            //            .set("opacity", 1.0)
+            //            .set("fill", "white")
+            //            ;
+            //            group.append(rect);
+            //        sub_area_x += sub_width;
+            //        sub_area_y += 0.0 ;
+            //    }
+
+            //}
+
+            let sub_rects = area.specific.all_rects(&area);
+            for sub_rect in sub_rects {
+                group.append(sub_rect);
+            }
+
+            // drawing hits is future work after we've successfully got the hierarchical stuff working
+            /*
             if matches.is_present("draw-hits") {
                 let mut rng = thread_rng();
                 let sample = sample(&mut rng, &area.route.datapoints, 1000); //TODO make variable
@@ -649,6 +704,7 @@ fn main() {
                 }
                 group.append(g_hits); 
             }
+            */
 
 
             if area.w > 0.5 {
@@ -658,7 +714,7 @@ fn main() {
                     .set("font-family", "mono")
                     .set("font-size", format!("{}%", area.w.min(area.h))) // == f64::min
                     .set("text-anchor", "middle");
-                    label.append(Tekst::new(area.route.to_string()))
+                    label.append(Tekst::new(area.specific.to_string()))
                     ;
                 group.append(label);
             }

@@ -36,6 +36,97 @@ impl Specific {
         }
         hits
     }
+
+    pub fn size(&self, unsized_rectangles: bool) -> u128 {
+        if unsized_rectangles {
+            return 1u128
+        } else {
+            self.__size()
+        }
+    }
+
+    pub fn __size(&self) -> u128 {
+        //(128 - self.network.prefix()).into()
+        let mut exp = self.network.prefix() as u32;
+        if exp < 24 {
+            exp = 24;
+        }
+        if exp > 64 {
+            exp = 64;
+        }
+        let r = 2_u128.pow(128 - exp);
+        r
+    }
+    
+    pub fn prefix_len(&self) -> u8 {
+        self.network.prefix()
+    }
+
+    pub fn to_string(&self) -> String {
+        format!("AS{}", &self.asn)
+    }
+
+    pub fn to_rect(&self, x: f64, y: f64, w: f64, h: f64, size_factor: f64) -> super::Rectangle {
+        super::Rectangle::new()
+            .set("x", x)
+            .set("y", y)
+            .set("width", w * size_factor)
+            .set("height", h * size_factor)
+            //.set("fill", color(area.route.datapoints.len() as u32, max_hits as u32)) 
+            //.set("fill", color(area.route.hw_avg() as u32, max_hamming_weight as u32)) 
+            //.set("fill", color(area.route.dp_avg() as u32, max_meta as u32)) 
+            .set("stroke-width", 0.5)
+            .set("stroke", "black")
+            .set("opacity", 1.0)
+            .set("fill", "white")
+    }
+
+    //pub fn rects_in_specifics(&self, area: &Area, size_factor: f64) -> Vec<super::Rectangle> {
+    pub fn rects_in_specifics(&self, x: f64, y: f64, w: f64, h: f64, size_factor: f64) -> Vec<super::Rectangle> {
+        if self.specifics.len() == 0 {
+            return vec![]
+        }
+        let mut results = Vec::new();
+        //let mut sub_area_x = area.x;
+        //let mut sub_area_y = area.y;
+        let mut x = x;
+        for s in &self.specifics {
+            results.push(s.to_rect(x, y, w, h, size_factor / 2.0));
+            results.append(&mut s.rects_in_specifics(x, y, w, h, size_factor / 2.0));
+            x += w * size_factor / 2.0;
+
+            //println!("parent size: {}", s.size(false) as f64 );
+            //println!("sub size: {}", s.size(false) as f64 / area.specific.size(false) as f64);
+            ////let sub_width = 2.0 * area.w * (s.size(false) as f64 / area.specific.size(false) as f64 ) ;
+            //let sub_width = (area.w / area.specific.specifics.len() as f64);
+            //let mut rect = super::Rectangle::new()
+            //    .set("x", sub_area_x)
+            //    .set("y", sub_area_y)
+            //    .set("width", sub_width)
+            //    .set("height", area.h / 2.0 )
+            //    //.set("stroke-width", border)
+            //    .set("stroke-width", 0.1)
+            //    .set("stroke", "black")
+            //    .set("opacity", 1.0)
+            //    .set("fill", "white")
+            //    ;
+            //    //group.append(rect);
+            //    results.push(rect);
+            //sub_area_x += sub_width;
+            //sub_area_y += 0.0 ;
+        }
+
+    results
+    }
+
+    pub fn all_rects(&self, area: &Area) -> Vec<super::Rectangle> {
+        //let mut result = self.rects_in_specifics(area, 1.0);
+        //result.push(self.to_rect(area, 1.0));
+        //result
+        let mut result = vec![self.to_rect(area.x, area.y, area.w, area.h, 1.0)];
+        result.append(&mut self.rects_in_specifics(area.x, area.y, area.w, area.h, 1.0));
+        result
+    }
 }
 
 /*
@@ -245,8 +336,18 @@ pub struct Area {
     pub w: f64,
     pub h: f64,
     pub surface: f64,
-    pub route: Route,
+    //pub route: Route,
+    pub specific: Specific,
 }
+
+//pub struct Area2 {
+//    pub x: f64,
+//    pub y: f64,
+//    pub w: f64,
+//    pub h: f64,
+//    pub surface: f64,
+//    pub specific: Specific,
+//}
 
 pub struct Row {
     pub x: f64,
@@ -315,10 +416,11 @@ impl Route {
 }
 
 impl Area {
-    pub fn new(surface: f64, ratio: f64, route: Route) -> Area {
+    //pub fn new(surface: f64, ratio: f64, route: Route) -> Area {
+    pub fn new(surface: f64, ratio: f64, specific: Specific) -> Area {
         let w = surface.powf(ratio);
         let h = surface.powf(1.0 - ratio);
-        Area { x: 0.0, y: 0.0, w, h, surface, route }
+        Area { x: 0.0, y: 0.0, w, h, surface, specific }
     }
     pub fn get_ratio(&self) -> f64 {
         if &self.h >= &self.w {
@@ -394,6 +496,16 @@ impl Row {
         } else {
             area.y = self.y;
         }
+
+        //if area.specific.specifics.len() > 0 {
+        //    println!("got specifics in this area");
+        //    for s in &area.specific.specifics {
+        //        println!("got {} size {}", s.network, s.prefix_len());
+        //        let norm_factor = 1_f64;
+        //        let sub_area = Area::new(s.size(true) as f64 * norm_factor, 1_f64, s.clone()  );
+        //        &self.areas.push(sub_area);
+        //    }
+        //}
 
         &self.areas.push(area);
         self.reflow();
