@@ -10,6 +10,7 @@ use std::net::Ipv6Addr;
 #[derive(Debug, Clone)]
 pub struct Specific {
     pub network: Ipv6Network,
+    pub asn: String,
     pub datapoints: Vec<super::DataPoint>,
     pub specifics: Vec<Specific>
 }
@@ -17,6 +18,23 @@ pub struct Specific {
 impl Specific {
     pub fn push_dp(&mut self, dp: super::DataPoint) -> () {
         self.datapoints.push(dp);
+    }
+    
+    pub fn all_hits(&self) -> usize {
+        &self.hits() + &self.hits_in_specifics()
+    }
+
+    pub fn hits(&self) -> usize {
+        self.datapoints.len()
+    }
+
+    pub fn hits_in_specifics(&self) -> usize {
+        let mut hits = 0;
+        for s in &self.specifics {
+            hits += s.hits();
+            hits += s.hits_in_specifics();
+        }
+        hits
     }
 }
 
@@ -126,7 +144,7 @@ pub fn specs_to_hier_with_rest_index(specifics: &Vec<Specific>, index: usize) ->
         //        vec![Specific { network: first.network, datapoints: first.datapoints.clone(),
         //            specifics: nested_specs }]
         //    };
-        let result = vec![Specific { network: first.network, datapoints: first.datapoints.clone(),
+        let result = vec![Specific { network: first.network, asn: first.asn.clone(), datapoints: first.datapoints.clone(),
                 specifics: specs_to_hier2(&nested_specs) }];
         return (result, consumed_specs)
     } else {
@@ -167,21 +185,21 @@ pub fn specs_to_hier2(specifics: &Vec<Specific>) -> Vec<Specific> {
     all_results
 }
 
-pub fn __route_to_specifics2(routes: &Vec<Route>) -> Vec<Specific> {
-    specs_to_hier2(&routes.iter().map(|r| Specific {network: r.prefix, datapoints: r.datapoints.clone(), specifics: Vec::new() } ).collect())
-}
+//pub fn __route_to_specifics2(routes: &Vec<Route>) -> Vec<Specific> {
+//    specs_to_hier2(&routes.iter().map(|r| Specific {network: r.prefix, datapoints: r.datapoints.clone(), specifics: Vec::new() } ).collect())
+//}
 
-pub fn __route_to_specifics(routes: &Vec<Route>) -> Vec<Specific> {
-    //specs_to_hier(&routes.iter().map(|r| Specific {network: r.prefix, datapoints: r.datapoints.clone(), specifics: Vec::new() } ).collect())
-    //specs_to_hier(&routes.iter().map(|r| Specific {network: r.prefix, datapoints: Vec::new(), specifics: Vec::new() } ).collect())
-    let mut specs: Vec<Specific> = Vec::new();
-    for r in routes {
-        let s = Specific {network: r.prefix, datapoints: r.datapoints.clone(), specifics: Vec::new() } ;
-        //let s = Specific {network: r.prefix, datapoints: Vec::new(), specifics: Vec::new() } ;
-        specs.push(s);
-    }
-    specs_to_hier2(&specs)
-}
+//pub fn __route_to_specifics(routes: &Vec<Route>) -> Vec<Specific> {
+//    //specs_to_hier(&routes.iter().map(|r| Specific {network: r.prefix, datapoints: r.datapoints.clone(), specifics: Vec::new() } ).collect())
+//    //specs_to_hier(&routes.iter().map(|r| Specific {network: r.prefix, datapoints: Vec::new(), specifics: Vec::new() } ).collect())
+//    let mut specs: Vec<Specific> = Vec::new();
+//    for r in routes {
+//        let s = Specific {network: r.prefix, datapoints: r.datapoints.clone(), specifics: Vec::new() } ;
+//        //let s = Specific {network: r.prefix, datapoints: Vec::new(), specifics: Vec::new() } ;
+//        specs.push(s);
+//    }
+//    specs_to_hier2(&specs)
+//}
 
 /*
 pub fn __vec_to_hier(routes: &Vec<Route>) -> Vec<Specific> {

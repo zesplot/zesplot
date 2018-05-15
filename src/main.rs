@@ -139,7 +139,7 @@ fn prefixes_from_file2<'a>(f: &'a str) -> io::Result<IpLookupTable<Ipv6Addr,Spec
 
             let asn = parts[1]; //.parse::<u32>();
                 table.insert(route.ip(), route.prefix().into(),
-                        Specific { network: route, datapoints: Vec::new(), specifics: Vec::new()});
+                        Specific { network: route, asn: asn.to_string(), datapoints: Vec::new(), specifics: Vec::new()});
             // TODO remove parsing to u32 because of asn_asn,asn notation in pfx2as
             //if let Ok(asn) = asn.parse::<u32>() {
             //    table.insert(route.ip(), route.prefix().into(),
@@ -450,19 +450,20 @@ fn main() {
     }
 
     eprintln!("# of specifics: {}", specifics.len());
+    eprintln!("# of hits in all specifics: {}", specifics.iter().fold(0, |sum, s| sum + s.all_hits())  );
     //println!("---");
     //for s in &specifics {
-    //    println!("{}", s.network);
-    //    println!("  {:?}", s.datapoints);
+    //    println!("{} {}", s.network, s.all_hits());
+    //    //println!("  {:?}", s.datapoints);
     //    for s2 in &s.specifics {
-    //        println!("  {}", s2.network);
-    //        println!("    {:?}", s2.datapoints);
+    //        println!("  {} {}", s2.network, s2.all_hits());
+    //        //println!("    {:?}", s2.datapoints);
     //        for s3 in &s2.specifics {
     //            println!("    {}", s3.network);
     //            for s4 in &s3.specifics {
     //                println!("      {}", s4.network);
     //                for s5 in &s4.specifics {
-    //                    println!("        {}", s5.network);
+    //                    println!("        {} {}", s5.network, s5.all_hits());
     //                }
     //            }
     //        }
