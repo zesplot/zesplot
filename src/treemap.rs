@@ -1,6 +1,7 @@
 use ipnetwork::Ipv6Network;
 use std::net::Ipv6Addr;
 
+use std::collections::HashSet;
 //pub struct Prefix {
 //    pub network: Ipv6Network,
 //    pub asn: String,
@@ -15,9 +16,45 @@ pub struct Specific {
     pub specifics: Vec<Specific>
 }
 
+pub struct PlotInfo {
+    pub max_hits: usize,
+    pub max_meta: f64,
+    pub max_dp_var: f64,
+    pub max_dp_uniq: usize,
+}
+
 impl Specific {
     pub fn push_dp(&mut self, dp: super::DataPoint) -> () {
         self.datapoints.push(dp);
+    }
+
+    pub fn dp_avg(&self) -> f64 {
+        let sum = self.datapoints.iter().fold(0, |s, i| s + i.meta);
+        sum as f64 / self.datapoints.len() as f64
+    }
+// var = ((Array[n] - mean) * (Array[n] - mean)) / numPoints;
+    pub fn dp_var(&self) -> f64 {
+        let sum = self.datapoints.iter().fold(0, |sum, dp| sum + dp.meta);
+        let mean = sum as f64 / self.datapoints.len() as f64;
+        let var = self.datapoints.iter().fold(0.0, |var, dp| var as f64 + (dp.meta as f64 - mean).powf(2.0) ) / self.datapoints.len() as f64;
+        var
+    }
+
+    pub fn dp_uniq(&self) -> usize {
+        let mut uniq_meta: HashSet<u32> = HashSet::new();
+        for dp in &self.datapoints {
+            uniq_meta.insert(dp.meta);
+        }
+        let hash_len = uniq_meta.len();
+        let mut tmp = self.datapoints.iter().map(|dp| dp.meta).collect::<Vec<u32>>();
+        tmp.dedup();
+        tmp.shrink_to_fit();
+        if hash_len != tmp.len() {
+            println!("inconsistency in dp_uniq, hash {} vs vec {}", hash_len, tmp.len());
+        }
+        //tmp.len() // as usize
+        hash_len
+
     }
     
     pub fn all_hits(&self) -> usize {
@@ -51,8 +88,8 @@ impl Specific {
         if exp < 24 {
             exp = 24;
         }
-        if exp > 64 {
-            exp = 64;
+        if exp > 48 {
+            exp = 48;
         }
         let r = 2_u128.pow(128 - exp);
         r
@@ -66,28 +103,31 @@ impl Specific {
         format!("AS{}", &self.asn)
     }
 
-    pub fn to_rect(&self, x: f64, y: f64, w: f64, h: f64, w_factor: f64, h_factor: f64, max_hits: usize) -> super::Rectangle {
+    pub fn to_rect(&self, x: f64, y: f64, w: f64, h: f64, w_factor: f64, h_factor: f64, max_hits: usize, plot_info: &PlotInfo) -> super::Rectangle {
         super::Rectangle::new()
             .set("x", x)
             .set("y", y)
             .set("width", w * w_factor)
             .set("height", h * h_factor)
-            //.set("fill", "white")
             .set("fill", super::color2(self.hits() as u32, max_hits as u32)) 
             //.set("fill", color(area.route.hw_avg() as u32, max_hamming_weight as u32)) 
-            //.set("fill", color(area.route.dp_avg() as u32, max_meta as u32)) 
+            //.set("fill", super::color2(self.dp_avg() as u32, plot_info.max_meta as u32)) 
+            //.set("fill", super::color2(self.dp_var() as u32, plot_info.max_dp_var as u32)) 
+            //.set("fill", super::color2(self.dp_uniq() as u32, plot_info.max_dp_uniq as u32)) 
             .set("stroke-width", w * h * 0.0005 * h_factor)
             .set("stroke", "#aaaaaa")
             .set("opacity", 1.0)
             .set("data-asn", self.asn.to_string())
             .set("data-prefix", self.network.to_string())
             .set("data-hits", self.all_hits())
-            //.set("data-dp-avg", format!("{:.1}", area.route.dp_avg()))
+            .set("data-dp-avg", format!("{:.1}", self.dp_avg()))
+            .set("data-dp-var", format!("{:.1}", self.dp_var()))
+            .set("data-dp-uniq", format!("{:.1}", self.dp_uniq()))
             //.set("data-hw-avg", format!("{:.1}", area.route.hw_avg()))
     }
 
     //pub fn rects_in_specifics(&self, area: &Area, w_factor: f64) -> Vec<super::Rectangle> {
-    pub fn rects_in_specifics(&self, x: f64, y: f64, w: f64, h: f64, w_factor: f64, h_factor: f64, max_hits: usize) -> Vec<super::Rectangle> {
+    pub fn rects_in_specifics(&self, x: f64, y: f64, w: f64, h: f64, w_factor: f64, h_factor: f64, max_hits: usize, plot_info: &PlotInfo) -> Vec<super::Rectangle> {
         if self.specifics.len() == 0 {
             return vec![]
         }
@@ -97,9 +137,9 @@ impl Specific {
         //let mut sub_area_y = area.y;
         let mut x = x;
         for s in &self.specifics {
-            results.push(s.to_rect(x, y, w, h, w_factor, h_factor, max_hits));
+            results.push(s.to_rect(x, y, w, h, w_factor, h_factor, max_hits, plot_info));
             let sub_w_factor  = w_factor; // / 1.0 / s.specifics.len() as f64;
-            results.append(&mut s.rects_in_specifics(x, y, w, h, sub_w_factor, h_factor / 2.0, max_hits));
+            results.append(&mut s.rects_in_specifics(x, y, w, h, sub_w_factor, h_factor / 2.0, max_hits, plot_info));
             x += w * w_factor; // * self.specifics.len() as f64;
 
             //println!("parent size: {}", s.size(false) as f64 );
@@ -126,12 +166,12 @@ impl Specific {
     results
     }
 
-    pub fn all_rects(&self, area: &Area, max_hits: usize) -> Vec<super::Rectangle> {
+    pub fn all_rects(&self, area: &Area, max_hits: usize, plot_info: &PlotInfo) -> Vec<super::Rectangle> {
         //let mut result = self.rects_in_specifics(area, 1.0);
         //result.push(self.to_rect(area, 1.0));
         //result
-        let mut result = vec![self.to_rect(area.x, area.y, area.w, area.h, 1.0, 1.0, max_hits)];
-        result.append(&mut self.rects_in_specifics(area.x, area.y, area.w, area.h, 1.0, 0.5, max_hits));
+        let mut result = vec![self.to_rect(area.x, area.y, area.w, area.h, 1.0, 1.0, max_hits, plot_info)];
+        result.append(&mut self.rects_in_specifics(area.x, area.y, area.w, area.h, 1.0, 0.5, max_hits, plot_info));
         result
     }
 }

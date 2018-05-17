@@ -97,15 +97,32 @@ fn color2(i: u32, max: u32) -> String {
     scale.append(&mut (0..0xff+1).map(|e| 0xff00 | (e << 16) | e).collect::<Vec<u32>>() );
     scale.append(&mut (0..0xff+1).rev().map(|e| 0xff0000 | (e << 8)).collect::<Vec<u32>>() );
 
+    if max > 1024 {
+        let norm = scale.len() as f64 / (max as f64).log2();
+        let mut index = ((i as f64).log2() * norm) as usize;
+        //FIXME: this should not be necessary..
+        if index >= scale.len() {
+            index = scale.len() - 1;
+        }
+        if index == 0 {
+            index = 1;
+        }
+        format!("#{:06x}", scale.get(index).unwrap())
+    } else {
+        let norm = scale.len() as f64 / (max as f64);
+        let mut index = ((i as f64) * norm) as usize;
+        //FIXME: this should not be necessary..
+        if index >= scale.len() {
+            index = scale.len() - 1;
+        }
+        if index == 0 {
+            index = 1;
+        }
+        format!("#{:06x}", scale.get(index).unwrap())
 
-    let norm = scale.len() as f64 / (max as f64).log2();
-    let mut index = ((i as f64).log2() * norm) as usize;
-    //FIXME: this should not be necessary..
-    if index >= scale.len() {
-        index = scale.len() - 1;
+
     }
     //println!("norm: {}, index: {} , len: {}", norm, index, scale.len());
-    format!("#{:06x}", scale.get(index).unwrap())
 }
 
 
@@ -437,6 +454,9 @@ fn main() {
     // maximum values to determine colour scale later on
     let mut max_hits = 0;
     let mut max_meta = 0f64; // based on DataPoint.meta, e.g. TTL
+    let mut max_dp_avg = 0f64; // based on DataPoint.meta, e.g. TTL
+    let mut max_dp_var = 0f64; // based on DataPoint.meta, e.g. TTL
+    let mut max_dp_uniq = 0_usize; // based on DataPoint.meta, e.g. TTL
     let mut max_hamming_weight = 0f64;
     let mut total_area = 0_u128;
     let unsized_rectangles = matches.is_present("unsized-rectangles");
@@ -460,8 +480,19 @@ fn main() {
     //eprintln!("max_meta: {}", max_meta);
     //eprintln!("max_hamming_weight: {}", max_hamming_weight);
 
+    for (_,_,s) in table2.iter() {
+        if s.dp_var() > max_dp_var {
+            max_dp_var = s.dp_var();
+        }
+        if s.dp_uniq() > max_dp_uniq {
+            max_dp_uniq = s.dp_uniq();
+        }
+    }
+
     let mut routes: Vec<Route> = table.into_iter().map(|(_,_,r)| r).collect();
     let mut specifics: Vec<Specific>  = specs_to_hier2(&table2.into_iter().map(|(_,_,s)| s).collect());
+    // without hierarchy: //TODO make this a switch
+    //let mut specifics: Vec<Specific>  = (table2.into_iter().map(|(_,_,s)| s).collect());
 
 
     total_area = specifics.iter().fold(0, |mut sum, s|{sum + s.size(unsized_rectangles)});
@@ -567,6 +598,7 @@ fn main() {
     }
 
 
+    let plot_info = PlotInfo{max_hits, max_meta, max_dp_var, max_dp_uniq};
 
 // NEW HIERACHICAL MODEL, try to visualize it now:
 
@@ -685,7 +717,7 @@ fn main() {
 
             //}
 
-            let sub_rects = area.specific.all_rects(&area, max_hits);
+            let sub_rects = area.specific.all_rects(&area, max_hits, &plot_info);
             for sub_rect in sub_rects {
                 group.append(sub_rect);
             }

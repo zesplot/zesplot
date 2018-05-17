@@ -45,6 +45,10 @@ __SVG__
 			+ "<br/>" 
 			+ "dp-avg: " + $(this).data('dp-avg')
 			+ "<br/>" 
+			+ "dp-var: " + $(this).data('dp-var')
+			+ "<br/>" 
+			+ "dp-uniq: " + $(this).data('dp-uniq')
+			+ "<br/>" 
 			+ "hw-avg: " + $(this).data('hw-avg')
 		);
 	});
