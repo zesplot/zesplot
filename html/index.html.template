@@ -11,6 +11,7 @@ __SVG__
 </div>
 
 <script type="text/javascript">
+/*
 	$('g').each(function() {
 		//$.data('powertip', function() {
 		//	return $(this).attr('title') + $(this).data('prefix');
@@ -28,6 +29,26 @@ __SVG__
 		);
 	});
 	$('g').powerTip({
+		followMouse: true
+	});
+*/
+	$('rect').each(function() {
+		//$.data('powertip', function() {
+		//	return $(this).attr('title') + $(this).data('prefix');
+		//});
+		$.data(this, 'powertip',
+			  "AS" + $(this).data('asn') 
+			+ "<br/>" 
+			+ $(this).data('prefix')
+			+ "<br/>" 
+			+ "hits: " + $(this).data('hits')
+			+ "<br/>" 
+			+ "dp-avg: " + $(this).data('dp-avg')
+			+ "<br/>" 
+			+ "hw-avg: " + $(this).data('hw-avg')
+		);
+	});
+	$('rect').powerTip({
 		followMouse: true
 	});
 

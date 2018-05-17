@@ -594,8 +594,8 @@ fn main() {
         for area in row.areas {
             let mut group = Group::new()
                 // FIXME route -> specific
-                //.set("data-asn", area.route.asn.to_string())
-                //.set("data-prefix", area.route.prefix.to_string())
+                //.set("data-asn", area.specific.asn.to_string())
+                //.set("data-prefix", area.specific.network.to_string())
                 //.set("data-hits", area.route.datapoints.len().to_string())
                 //.set("data-dp-avg", format!("{:.1}", area.route.dp_avg()))
                 //.set("data-hw-avg", format!("{:.1}", area.route.hw_avg()))

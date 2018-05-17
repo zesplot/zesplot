@@ -79,6 +79,11 @@ impl Specific {
             .set("stroke", "#aaaaaa")
             .set("opacity", 1.0)
             .set("fill", "white")
+            .set("data-asn", self.asn.to_string())
+            .set("data-prefix", self.network.to_string())
+            .set("data-hits", self.all_hits())
+            //.set("data-dp-avg", format!("{:.1}", area.route.dp_avg()))
+            //.set("data-hw-avg", format!("{:.1}", area.route.hw_avg()))
     }
 
     //pub fn rects_in_specifics(&self, area: &Area, w_factor: f64) -> Vec<super::Rectangle> {
