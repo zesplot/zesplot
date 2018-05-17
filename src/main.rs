@@ -85,6 +85,23 @@ fn color(i: u32, max: u32) -> String  {
     }
 }
 
+//const COLOUR_SCALE: Vec::<u32> = (0..0xff+1).map(|e| 0xff | (e << 8)).collect();
+//FIXME: recreating the scale everytime is ugly
+fn color2(i: u32, max: u32) -> String {
+    let mut scale: Vec::<u32> = (0..0xff+1).map(|e| 0xff | (e << 8)).collect();
+    scale.append(&mut (0..0xff+1).rev().map(|e| (0xff << 8) | e).collect::<Vec<u32>>() );
+    scale.append(&mut (0..0xff+1).map(|e| 0xff00 | (e << 16) | e).collect::<Vec<u32>>() );
+    scale.append(&mut (0..0xff+1).rev().map(|e| 0xff0000 | (e << 8)).collect::<Vec<u32>>() );
+    let norm = scale.len() as f64 / max as f64;
+    let mut index = (i as f64 * norm) as usize;
+    //FIXME: this should not be necessary..
+    if index >= scale.len() {
+        index = scale.len() - 1;
+    }
+    println!("norm: {}, index: {} , len: {}", norm, index, scale.len());
+    format!("#{:06x}", scale.get(index).unwrap())
+}
+
 
 // the input for prefixes_from_file is generated a la:
 // ./bgpdump -M latest-bview.gz | ack "::/" cut -d'|' -f 6,7 --output-delimiter=" " | awk '{print $1,$NF}' |sort -u
@@ -655,7 +672,7 @@ fn main() {
 
             //}
 
-            let sub_rects = area.specific.all_rects(&area);
+            let sub_rects = area.specific.all_rects(&area, max_hits);
             for sub_rect in sub_rects {
                 group.append(sub_rect);
             }

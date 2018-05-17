@@ -66,19 +66,19 @@ impl Specific {
         format!("AS{}", &self.asn)
     }
 
-    pub fn to_rect(&self, x: f64, y: f64, w: f64, h: f64, w_factor: f64, h_factor: f64) -> super::Rectangle {
+    pub fn to_rect(&self, x: f64, y: f64, w: f64, h: f64, w_factor: f64, h_factor: f64, max_hits: usize) -> super::Rectangle {
         super::Rectangle::new()
             .set("x", x)
             .set("y", y)
             .set("width", w * w_factor)
             .set("height", h * h_factor)
-            //.set("fill", color(area.route.datapoints.len() as u32, max_hits as u32)) 
+            //.set("fill", "white")
+            .set("fill", super::color2(self.hits() as u32, max_hits as u32)) 
             //.set("fill", color(area.route.hw_avg() as u32, max_hamming_weight as u32)) 
             //.set("fill", color(area.route.dp_avg() as u32, max_meta as u32)) 
             .set("stroke-width", w * h * 0.0005 * h_factor)
             .set("stroke", "#aaaaaa")
             .set("opacity", 1.0)
-            .set("fill", "white")
             .set("data-asn", self.asn.to_string())
             .set("data-prefix", self.network.to_string())
             .set("data-hits", self.all_hits())
@@ -87,7 +87,7 @@ impl Specific {
     }
 
     //pub fn rects_in_specifics(&self, area: &Area, w_factor: f64) -> Vec<super::Rectangle> {
-    pub fn rects_in_specifics(&self, x: f64, y: f64, w: f64, h: f64, w_factor: f64, h_factor: f64) -> Vec<super::Rectangle> {
+    pub fn rects_in_specifics(&self, x: f64, y: f64, w: f64, h: f64, w_factor: f64, h_factor: f64, max_hits: usize) -> Vec<super::Rectangle> {
         if self.specifics.len() == 0 {
             return vec![]
         }
@@ -97,9 +97,9 @@ impl Specific {
         //let mut sub_area_y = area.y;
         let mut x = x;
         for s in &self.specifics {
-            results.push(s.to_rect(x, y, w, h, w_factor, h_factor));
+            results.push(s.to_rect(x, y, w, h, w_factor, h_factor, max_hits));
             let sub_w_factor  = w_factor; // / 1.0 / s.specifics.len() as f64;
-            results.append(&mut s.rects_in_specifics(x, y, w, h, sub_w_factor, h_factor / 2.0));
+            results.append(&mut s.rects_in_specifics(x, y, w, h, sub_w_factor, h_factor / 2.0, max_hits));
             x += w * w_factor; // * self.specifics.len() as f64;
 
             //println!("parent size: {}", s.size(false) as f64 );
@@ -126,12 +126,12 @@ impl Specific {
     results
     }
 
-    pub fn all_rects(&self, area: &Area) -> Vec<super::Rectangle> {
+    pub fn all_rects(&self, area: &Area, max_hits: usize) -> Vec<super::Rectangle> {
         //let mut result = self.rects_in_specifics(area, 1.0);
         //result.push(self.to_rect(area, 1.0));
         //result
-        let mut result = vec![self.to_rect(area.x, area.y, area.w, area.h, 1.0, 1.0)];
-        result.append(&mut self.rects_in_specifics(area.x, area.y, area.w, area.h, 1.0, 0.5));
+        let mut result = vec![self.to_rect(area.x, area.y, area.w, area.h, 1.0, 1.0, max_hits)];
+        result.append(&mut self.rects_in_specifics(area.x, area.y, area.w, area.h, 1.0, 0.5, max_hits));
         result
     }
 }
