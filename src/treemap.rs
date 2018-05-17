@@ -75,8 +75,9 @@ impl Specific {
             //.set("fill", color(area.route.datapoints.len() as u32, max_hits as u32)) 
             //.set("fill", color(area.route.hw_avg() as u32, max_hamming_weight as u32)) 
             //.set("fill", color(area.route.dp_avg() as u32, max_meta as u32)) 
-            .set("stroke-width", 0.5)
+            .set("stroke-width", h_factor * 0.3)
             .set("stroke", "black")
+            .set("stroke-opacity", 0.5)
             .set("opacity", 1.0)
             .set("fill", "white")
     }
