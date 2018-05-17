@@ -88,6 +88,9 @@ fn color(i: u32, max: u32) -> String  {
 //const COLOUR_SCALE: Vec::<u32> = (0..0xff+1).map(|e| 0xff | (e << 8)).collect();
 //FIXME: recreating the scale everytime is ugly
 fn color2(i: u32, max: u32) -> String {
+    if i == 0 {
+        return "#eeeeee".to_string();
+    }
     let mut scale: Vec::<u32> = (0..0xff+1).map(|e| 0xff | (e << 8)).collect();
     scale.append(&mut (0..0xff+1).rev().map(|e| (0xff << 8) | e).collect::<Vec<u32>>() );
     scale.append(&mut (0..0xff+1).map(|e| 0xff00 | (e << 16) | e).collect::<Vec<u32>>() );
@@ -98,7 +101,7 @@ fn color2(i: u32, max: u32) -> String {
     if index >= scale.len() {
         index = scale.len() - 1;
     }
-    println!("norm: {}, index: {} , len: {}", norm, index, scale.len());
+    //println!("norm: {}, index: {} , len: {}", norm, index, scale.len());
     format!("#{:06x}", scale.get(index).unwrap())
 }
 
@@ -460,6 +463,8 @@ fn main() {
 
 
 
+    eprintln!("# of specifics: {}", specifics.len());
+    eprintln!("# of hits in all specifics: {}", specifics.iter().fold(0, |sum, s| sum + s.all_hits())  );
 
 
     if matches.is_present("filter-empty-prefixes") {
@@ -467,12 +472,16 @@ fn main() {
         routes.retain(|r| r.datapoints.len() > 0);
         total_area = routes.iter().fold(0, |mut s, r|{s += r.size(unsized_rectangles); s});
         eprintln!("filtered {} empty prefixes, left: {}", pre_filter_len - routes.len(), routes.len());
+
+        let pre_filter_len_specs = specifics.len();
+        specifics.retain(|s| s.all_hits() > 0);
+        total_area = specifics.iter().fold(0, |mut sum, s|{sum + s.size(unsized_rectangles)});
+        eprintln!("filtered {} empty specifics, left: {}", pre_filter_len_specs - specifics.len(), specifics.len());
+
     } else {
         eprintln!("no filtering of empty prefixes");
     }
 
-    eprintln!("# of specifics: {}", specifics.len());
-    eprintln!("# of hits in all specifics: {}", specifics.iter().fold(0, |sum, s| sum + s.all_hits())  );
     //println!("---");
     //for s in &specifics {
     //    println!("{} {}", s.network, s.all_hits());
