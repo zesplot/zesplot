@@ -464,6 +464,7 @@ fn main() {
     let mut specifics: Vec<Specific>  = specs_to_hier2(&table2.into_iter().map(|(_,_,s)| s).collect());
 
 
+    total_area = specifics.iter().fold(0, |mut sum, s|{sum + s.size(unsized_rectangles)});
 
 
     eprintln!("# of specifics: {}", specifics.len());
