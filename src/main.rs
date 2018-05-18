@@ -1,7 +1,7 @@
 #![feature(i128, i128_type)]
 
 mod treemap;
-use treemap::{Area,Row,Route};
+use treemap::{Area,Row};
 use treemap::*;
 
 use std::collections::HashSet;
@@ -57,42 +57,25 @@ const COLOR_INPUT: &str = "hits";
 
 
 
-fn _color(i: u32) -> String  {
-    if i == 0 {
-        "#eeeeee".to_string()
-    } else {
-        format!("#00{:02x}{:02x}", 0xFF-i, i)
-    }
-}
+//fn _color(i: u32) -> String  {
+//    if i == 0 {
+//        "#eeeeee".to_string()
+//    } else {
+//        format!("#00{:02x}{:02x}", 0xFF-i, i)
+//    }
+//}
 
-// for the original 'colour == number of hits', we want log2
 // for things that are less spread, e.g. avg TTL, the non-log version might give better output
-// TODO: try whether some threshold within the same function works
+// try whether some threshold within the same function works
 // e.g. if max > 1024, then log2()
-fn color(i: u32, max: u32) -> String  {
-    if i == 0 {
-        "#eeeeee".to_string()
-    } else {
-        if max > 1024 {
-            let norm_factor = (1.0 / ((max as f32).log2() / 255.0)) as f32;
-            let v = (norm_factor *(i as f32).log2()) as u32;
-            format!("#{:02x}00{:02x}", v, 0xFF-v)
-        } else {
-            let norm_factor = (1.0 / ((max as f32) / 255.0)) as f32;
-            let v = (norm_factor *(i as f32)) as u32;
-            format!("#{:02x}00{:02x}", v, 0xFF-v)
-        }
-    }
-}
-
-//const COLOUR_SCALE: Vec::<u32> = (0..0xff+1).map(|e| 0xff | (e << 8)).collect();
+// const COLOUR_SCALE: Vec::<u32> = (0..0xff+1).map(|e| 0xff | (e << 8)).collect();
 //FIXME: recreating the scale everytime is ugly
-fn color2(i: u32, max: u32) -> String {
+fn color(i: u32, max: u32) -> String {
     if i == 0 {
         return "#eeeeee".to_string();
     }
 
-    let mut scale: Vec::<u32> = (0..0xff+1).map(|e| 0xff | (e << 8)).collect();
+    let mut scale: Vec<u32> = (0..0xff+1).map(|e| 0xff | (e << 8)).collect();
     scale.append(&mut (0..0xff+1).rev().map(|e| (0xff << 8) | e).collect::<Vec<u32>>() );
     scale.append(&mut (0..0xff+1).map(|e| 0xff00 | (e << 16) | e).collect::<Vec<u32>>() );
     scale.append(&mut (0..0xff+1).rev().map(|e| 0xff0000 | (e << 8)).collect::<Vec<u32>>() );
@@ -139,35 +122,7 @@ fn color2(i: u32, max: u32) -> String {
 // or, simply fetched from http://data.caida.org/datasets/routing/routeviews6-prefix2as/2018/01/
 // awk '{print $1"/"$2, $3}'
 
-fn prefixes_from_file<'a>(f: &'a str) -> io::Result<IpLookupTable<Ipv6Addr,Route>> {
-    let mut file = File::open(f)?;
-    let mut s = String::new();
-    file.read_to_string(&mut s)?;
-    let mut table: IpLookupTable<Ipv6Addr,Route> = IpLookupTable::new();
-    for line in s.lines() {
-        let parts = line.split_whitespace().collect::<Vec<&str>>();
-        //let route: Ipv6Network = parts[0].parse().unwrap();
-        if let Ok(route) = parts[0].parse::<Ipv6Network>(){
-
-            let asn = parts[1]; //.parse::<u32>();
-                table.insert(route.ip(), route.prefix().into(),
-                        Route { prefix: route, asn: asn.to_string(), datapoints: Vec::new()});
-            // TODO remove parsing to u32 because of asn_asn,asn notation in pfx2as
-            //if let Ok(asn) = asn.parse::<u32>() {
-            //    table.insert(route.ip(), route.prefix().into(),
-            //            //Route { prefix: route, asn: asn.parse::<u32>().unwrap(), hits: Vec::new()});
-            //            Route { prefix: route, asn: asn, hits: Vec::new()});
-            //} else {
-            //    eprintln!("choked on {} while reading prefixes file", line);
-            //}
-        } else {
-                eprintln!("choked on {} while reading prefixes file", line);
-        }
-    }; 
-    Ok(table)
-}
-
-fn prefixes_from_file2<'a>(f: &'a str) -> io::Result<IpLookupTable<Ipv6Addr,Specific>> {
+fn prefixes_from_file<'a>(f: &'a str) -> io::Result<IpLookupTable<Ipv6Addr,Specific>> {
     let mut file = File::open(f)?;
     let mut s = String::new();
     file.read_to_string(&mut s)?;
@@ -199,18 +154,7 @@ fn prefixes_from_file2<'a>(f: &'a str) -> io::Result<IpLookupTable<Ipv6Addr,Spec
 #[derive(Debug,CSVParsable)] //Deserialize
 struct ZmapRecord {
     saddr: String,
-//    daddr: String,
-//    ipid: u8,
     ttl: u8,
-//    sport: u16,
-//    dport: u16,
-//    classification: String,
-//    repeat: u8,
-//    cooldown: u8,
-//    timestamp_ts: u64,
-//    timestamp_us: u32,
-//    success: u8,
-    //tcpmss: u16
 }
 
 #[derive(Debug,CSVParsable)] //Deserialize
@@ -222,7 +166,7 @@ struct ZmapRecordTcpmss {
 #[derive(Eq,PartialEq,Hash,Clone,Debug)]
 pub struct DataPoint {
     ip6: Ipv6Addr,
-    meta: u32, // meta value, e.g. TTL
+    meta: u32, // meta value, e.g. TTL, MSS
 }
 
 impl DataPoint {
@@ -426,7 +370,6 @@ fn main() {
 
     now = Instant::now();
     let table = prefixes_from_file(matches.value_of("prefix-file").unwrap()).unwrap();
-    let table2 = prefixes_from_file2(matches.value_of("prefix-file").unwrap()).unwrap();
 
     //eprintln!("-- matching /128s with prefixes");
 
@@ -434,16 +377,12 @@ fn main() {
     let mut prefix_mismatches = 0;
     for dp in datapoints.into_iter() {
         if let Some((_, _, r)) = table.longest_match(dp.ip6) {
-            r.push_dp(dp.clone());
+            r.push_dp(dp);
         } else {
             //eprintln!("could not match {:?}", dp.ip6);
             prefix_mismatches += 1;
         }
-        if let Some((_, _, r)) = table2.longest_match(dp.ip6) {
-            r.push_dp(dp);
-        }
     }
-    eprintln!("table 2 filled");
     
     if prefix_mismatches > 0 {
         let s = format!("Could not match {} addresses", prefix_mismatches).to_string().on_red().bold();
@@ -451,36 +390,25 @@ fn main() {
     }
 
 
-    // maximum values to determine colour scale later on
+    // maximum values to determine colour scale later on, passed via PlotInfo
+    // maximum number of hits in certain prefix
     let mut max_hits = 0;
-    let mut max_meta = 0f64; // based on DataPoint.meta, e.g. TTL
-    let mut max_dp_avg = 0f64; // based on DataPoint.meta, e.g. TTL
-    let mut max_dp_var = 0f64; // based on DataPoint.meta, e.g. TTL
-    let mut max_dp_uniq = 0_usize; // based on DataPoint.meta, e.g. TTL
+    // based on DataPoint.meta, e.g. TTL, MSS:
+    let mut max_dp_avg = 0f64; 
+    let mut max_dp_var = 0f64;
+    let mut max_dp_uniq = 0_usize;
+    // maximum hamming weight: // TODO do we need avg/var?
     let mut max_hamming_weight = 0f64;
-    let mut total_area = 0_u128;
     let unsized_rectangles = matches.is_present("unsized-rectangles");
     
-    // sum up the sizes of all the prefixes:
-    // and find the max hits for the colour scale
-    for (_,_,r) in table.iter() {
-        total_area += r.size(unsized_rectangles);
-        if r.datapoints.len() > max_hits {
-            max_hits = r.datapoints.len();
+    for (_,_,s) in table.iter() {
+        if s.datapoints.len() > max_hits {
+            max_hits = s.datapoints.len();
         }
-        if r.dp_avg() > max_meta {
-            max_meta = r.dp_avg();
+        // based on dp.meta:
+        if s.dp_avg() > max_dp_avg {
+            max_dp_avg = s.dp_avg();
         }
-        if r.hw_avg() > max_hamming_weight {
-            max_hamming_weight = r.hw_avg();
-        }
-    }
-    //eprintln!("total_area: {}", total_area);
-    //eprintln!("max_hits: {}", max_hits);
-    //eprintln!("max_meta: {}", max_meta);
-    //eprintln!("max_hamming_weight: {}", max_hamming_weight);
-
-    for (_,_,s) in table2.iter() {
         if s.dp_var() > max_dp_var {
             max_dp_var = s.dp_var();
         }
@@ -489,13 +417,13 @@ fn main() {
         }
     }
 
-    let mut routes: Vec<Route> = table.into_iter().map(|(_,_,r)| r).collect();
-    let mut specifics: Vec<Specific>  = specs_to_hier2(&table2.into_iter().map(|(_,_,s)| s).collect());
+    let mut specifics: Vec<Specific>  = specs_to_hier2(&table.into_iter().map(|(_,_,s)| s).collect());
     // without hierarchy: //TODO make this a switch
-    //let mut specifics: Vec<Specific>  = (table2.into_iter().map(|(_,_,s)| s).collect());
+    //let mut specifics: Vec<Specific>  = (table.into_iter().map(|(_,_,s)| s).collect());
 
-
-    total_area = specifics.iter().fold(0, |mut sum, s|{sum + s.size(unsized_rectangles)});
+    // we calculate the total_area after turning the specifics into an hierarchical model
+    // because the hierchical model will have less 'first level' rectangles, thus a smaller total_area
+    let mut total_area = specifics.iter().fold(0, |sum, s|{sum + s.size(unsized_rectangles)});
 
 
     eprintln!("# of specifics: {}", specifics.len());
@@ -503,49 +431,31 @@ fn main() {
 
 
     if matches.is_present("filter-empty-prefixes") {
-        let pre_filter_len = routes.len();
-        routes.retain(|r| r.datapoints.len() > 0);
-        total_area = routes.iter().fold(0, |mut s, r|{s += r.size(unsized_rectangles); s});
-        eprintln!("filtered {} empty prefixes, left: {}", pre_filter_len - routes.len(), routes.len());
-
+        //TODO: currently, we plot everything that either contains hits, or has more-specifics that contain hits
+        // if a prefix has multiple more-specifics, and only one has hits, all specifics are plotted
+        // filtering out empty more-specifics might be useful
         let pre_filter_len_specs = specifics.len();
         specifics.retain(|s| s.all_hits() > 0);
-        total_area = specifics.iter().fold(0, |mut sum, s|{sum + s.size(unsized_rectangles)});
+        total_area = specifics.iter().fold(0, |sum, s|{sum + s.size(unsized_rectangles)});
         eprintln!("filtered {} empty specifics, left: {}", pre_filter_len_specs - specifics.len(), specifics.len());
 
     } else {
         eprintln!("no filtering of empty prefixes");
     }
 
-    //println!("---");
-    //for s in &specifics {
-    //    println!("{} {}", s.network, s.all_hits());
-    //    //println!("  {:?}", s.datapoints);
-    //    for s2 in &s.specifics {
-    //        println!("  {} {}", s2.network, s2.all_hits());
-    //        //println!("    {:?}", s2.datapoints);
-    //        for s3 in &s2.specifics {
-    //            println!("    {}", s3.network);
-    //            for s4 in &s3.specifics {
-    //                println!("      {}", s4.network);
-    //                for s5 in &s4.specifics {
-    //                    println!("        {} {}", s5.network, s5.all_hits());
-    //                }
-    //            }
-    //        }
-    //    }
-    //}
-    //println!("---");
-
+    // TODO: this is affected by how we impement the filtering of empty prefixes
+    // do we want to keep empty more-specifics of parents with hits?
+    // idea: be lenient in create-prefixes, so we have the option to be more restrictive in the filtering
     if matches.is_present("create-prefixes") {
-        routes.retain(|r| r.datapoints.len() > 0);
+        //routes.retain(|r| r.datapoints.len() > 0);
+        specifics.retain(|s| s.all_hits() > 0);
         let prefix_output_fn = format!("output/{}.prefixes",
                     Path::new(matches.value_of("address-file").unwrap()).file_name().unwrap().to_str().unwrap(),
         );
         eprintln!("creating prefix file {}", prefix_output_fn);
         let mut file = File::create(prefix_output_fn).unwrap();
-        for r in routes {
-            let _ = writeln!(file, "{} {}", r.prefix, r.asn);
+        for s in specifics {
+            let _ = writeln!(file, "{} {}", s.network, s.asn);
         }
         exit(0);
     }
@@ -574,34 +484,25 @@ fn main() {
     let norm_factor = (WIDTH * HEIGHT) / total_area as f64;
 
     let mut areas: Vec<Area> = Vec::new();
-    //let mut areas2: Vec<Area2> = Vec::new();
 
     // sort by both size and ASN, so ASs are grouped in the final plot
-    // FIXME size() is confusing:
-    //   there is the actual prefix size, e.g. /32
-    //   and there is our size() that might do (128-32)^2, or something else
-    //   for now, use prefix_len() to sort
-    //   and keep size() to adjust sizes of the rectangles to get some reasonable output
-
-    //routes.sort_by(|a, b| b.size().cmp(&a.size()).then(a.asn.cmp(&b.asn))  );
-    routes.sort_by(|a, b| b.prefix_len().cmp(&a.prefix_len()).reverse().then(a.asn.cmp(&b.asn))  );
-
-    for r in routes {
-        //areas.push(Area::new(r.size(unsized_rectangles) as f64 * norm_factor, init_ar, r  ));
-    }
-
     specifics.sort_by(|a, b| b.prefix_len().cmp(&a.prefix_len()).reverse().then(a.asn.cmp(&b.asn))  );
 
+    // TODO: should we sort differently when creating an unsized plot?
+    //specifics.sort_by(|a, b| a.asn.cmp(&b.asn).then(a.network.ip().cmp(&b.network.ip())));
+
     for s in specifics {
-        //println!("{}", s.network);
         areas.push(Area::new(s.size(unsized_rectangles) as f64 * norm_factor, init_ar, s  ));
     }
 
 
-    let plot_info = PlotInfo{max_hits, max_meta, max_dp_var, max_dp_uniq};
-
-// NEW HIERACHICAL MODEL, try to visualize it now:
-
+    //FIXME add this into plot_info
+    //let rect = match matches.value_of("color-input").unwrap_or(COLOR_INPUT) {
+    //    "hw"        => rect.set("fill", color(area.route.hw_avg() as u32, max_hamming_weight as u32)),
+    //    "ttl"|"mss" => rect.set("fill", color(area.route.dp_avg() as u32, max_meta as u32)),
+    //    "hits"|_    => rect.set("fill", color(area.route.datapoints.len() as u32, max_hits as u32)),
+    //};
+    let plot_info = PlotInfo{max_hits, max_dp_avg, max_dp_var, max_dp_uniq};
 
     let mut rows = Vec::new();
     //let (first_area, remaining_areas) = areas.split_first().unwrap();
@@ -655,69 +556,10 @@ fn main() {
 
         for area in row.areas {
             let mut group = Group::new()
-                // FIXME route -> specific
-                //.set("data-asn", area.specific.asn.to_string())
-                //.set("data-prefix", area.specific.network.to_string())
-                //.set("data-hits", area.route.datapoints.len().to_string())
-                //.set("data-dp-avg", format!("{:.1}", area.route.dp_avg()))
-                //.set("data-hw-avg", format!("{:.1}", area.route.hw_avg()))
+                //.set("data-something", area.specific.asn.to_string())
                 ;
 
-            let mut border = 0.0005 * area.surface;
-            if border > 0.4 {
-                border = 0.4;
-            }
-
-            let mut rect = Rectangle::new()
-                .set("x", area.x)
-                .set("y", area.y)
-                .set("width", area.w)
-                .set("height", area.h)
-                //.set("fill", color(area.route.datapoints.len() as u32, max_hits as u32)) 
-                //.set("fill", color(area.route.hw_avg() as u32, max_hamming_weight as u32)) 
-                //.set("fill", color(area.route.dp_avg() as u32, max_meta as u32)) 
-                .set("stroke-width", border)
-                .set("stroke", "black")
-                .set("opacity", 1.0)
-                ;
-
-            //FIXME route -> specific
-            //let rect = match matches.value_of("color-input").unwrap_or(COLOR_INPUT) {
-            //    "hw"        => rect.set("fill", color(area.route.hw_avg() as u32, max_hamming_weight as u32)),
-            //    "ttl"|"mss" => rect.set("fill", color(area.route.dp_avg() as u32, max_meta as u32)),
-            //    "hits"|_    => rect.set("fill", color(area.route.datapoints.len() as u32, max_hits as u32)),
-            //};
-            let rect = rect.set("fill", "white");
-            //group.append(rect);
-
-// HIERARCHICAL STUFF ATTEMPT
-            //if area.specific.specifics.len() > 0 {
-            //    let mut sub_area_x = area.x;
-            //    let mut sub_area_y = area.y;
-            //    for s in &area.specific.specifics {
-            //        println!("parent size: {}", s.size(false) as f64 );
-            //        println!("sub size: {}", s.size(false) as f64 / area.specific.size(false) as f64);
-            //        //let sub_width = 2.0 * area.w * (s.size(false) as f64 / area.specific.size(false) as f64 ) ;
-            //        let sub_width = (area.w / area.specific.specifics.len() as f64);
-            //        let mut rect = Rectangle::new()
-            //            .set("x", sub_area_x)
-            //            .set("y", sub_area_y)
-            //            .set("width", sub_width)
-            //            .set("height", area.h / 2.0 )
-            //            //.set("stroke-width", border)
-            //            .set("stroke-width", border / 2.0)
-            //            .set("stroke", "black")
-            //            .set("opacity", 1.0)
-            //            .set("fill", "white")
-            //            ;
-            //            group.append(rect);
-            //        sub_area_x += sub_width;
-            //        sub_area_y += 0.0 ;
-            //    }
-
-            //}
-
-            let sub_rects = area.specific.all_rects(&area, max_hits, &plot_info);
+            let sub_rects = area.specific.all_rects(&area, &plot_info);
             for sub_rect in sub_rects {
                 group.append(sub_rect);
             }

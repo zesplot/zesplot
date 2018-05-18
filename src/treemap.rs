@@ -2,11 +2,6 @@ use ipnetwork::Ipv6Network;
 use std::net::Ipv6Addr;
 
 use std::collections::HashSet;
-//pub struct Prefix {
-//    pub network: Ipv6Network,
-//    pub asn: String,
-//    pub specifics: Vec<Specific>
-//}
 
 #[derive(Debug, Clone)]
 pub struct Specific {
@@ -18,7 +13,8 @@ pub struct Specific {
 
 pub struct PlotInfo {
     pub max_hits: usize,
-    pub max_meta: f64,
+    //pub max_dp: f64,
+    pub max_dp_avg: f64,
     pub max_dp_var: f64,
     pub max_dp_uniq: usize,
 }
@@ -46,12 +42,10 @@ impl Specific {
             uniq_meta.insert(dp.meta);
         }
         let hash_len = uniq_meta.len();
-        let mut tmp = self.datapoints.iter().map(|dp| dp.meta).collect::<Vec<u32>>();
-        tmp.dedup();
-        tmp.shrink_to_fit();
-        if hash_len != tmp.len() {
-            println!("inconsistency in dp_uniq, hash {} vs vec {}", hash_len, tmp.len());
-        }
+        //TODO: why is this different? (not essential for zesplot)
+        //let mut tmp = self.datapoints.iter().map(|dp| dp.meta).collect::<Vec<u32>>();
+        //tmp.dedup();
+        //tmp.shrink_to_fit();
         //tmp.len() // as usize
         hash_len
 
@@ -103,22 +97,24 @@ impl Specific {
         format!("AS{}", &self.asn)
     }
 
-    pub fn to_rect(&self, x: f64, y: f64, w: f64, h: f64, w_factor: f64, h_factor: f64, max_hits: usize, plot_info: &PlotInfo) -> super::Rectangle {
+    pub fn to_rect(&self, x: f64, y: f64, w: f64, h: f64, w_factor: f64, h_factor: f64, plot_info: &PlotInfo) -> super::Rectangle {
         super::Rectangle::new()
             .set("x", x)
             .set("y", y)
             .set("width", w * w_factor)
             .set("height", h * h_factor)
-            .set("fill", super::color2(self.hits() as u32, max_hits as u32)) 
+            //TODO choose fill colour via PlotInfo
+            .set("fill", super::color(self.hits() as u32, plot_info.max_hits as u32)) 
             //.set("fill", color(area.route.hw_avg() as u32, max_hamming_weight as u32)) 
-            //.set("fill", super::color2(self.dp_avg() as u32, plot_info.max_meta as u32)) 
-            //.set("fill", super::color2(self.dp_var() as u32, plot_info.max_dp_var as u32)) 
-            //.set("fill", super::color2(self.dp_uniq() as u32, plot_info.max_dp_uniq as u32)) 
+            //.set("fill", super::color(self.dp_avg() as u32, plot_info.max_meta as u32)) 
+            //.set("fill", super::color(self.dp_var() as u32, plot_info.max_dp_var as u32)) 
+            //.set("fill", super::color(self.dp_uniq() as u32, plot_info.max_dp_uniq as u32)) 
             .set("stroke-width", w * h * 0.0005 * h_factor)
             .set("stroke", "#aaaaaa")
             .set("opacity", 1.0)
             .set("data-asn", self.asn.to_string())
             .set("data-prefix", self.network.to_string())
+            //TODO: add type of DP to show in tooltip, e.g. 'TTL' or 'MSS'
             .set("data-hits", self.all_hits())
             .set("data-dp-avg", format!("{:.1}", self.dp_avg()))
             .set("data-dp-var", format!("{:.1}", self.dp_var()))
@@ -126,52 +122,29 @@ impl Specific {
             //.set("data-hw-avg", format!("{:.1}", area.route.hw_avg()))
     }
 
-    //pub fn rects_in_specifics(&self, area: &Area, w_factor: f64) -> Vec<super::Rectangle> {
-    pub fn rects_in_specifics(&self, x: f64, y: f64, w: f64, h: f64, w_factor: f64, h_factor: f64, max_hits: usize, plot_info: &PlotInfo) -> Vec<super::Rectangle> {
+    pub fn rects_in_specifics(&self, x: f64, y: f64, w: f64, h: f64, w_factor: f64, h_factor: f64, plot_info: &PlotInfo) -> Vec<super::Rectangle> {
         if self.specifics.len() == 0 {
             return vec![]
         }
         let w_factor  = w_factor / self.specifics.len() as f64;
         let mut results = Vec::new();
-        //let mut sub_area_x = area.x;
-        //let mut sub_area_y = area.y;
         let mut x = x;
         for s in &self.specifics {
-            results.push(s.to_rect(x, y, w, h, w_factor, h_factor, max_hits, plot_info));
+            results.push(s.to_rect(x, y, w, h, w_factor, h_factor, plot_info));
             let sub_w_factor  = w_factor; // / 1.0 / s.specifics.len() as f64;
-            results.append(&mut s.rects_in_specifics(x, y, w, h, sub_w_factor, h_factor / 2.0, max_hits, plot_info));
+            results.append(&mut s.rects_in_specifics(x, y, w, h, sub_w_factor, h_factor / 2.0, plot_info));
             x += w * w_factor; // * self.specifics.len() as f64;
-
-            //println!("parent size: {}", s.size(false) as f64 );
-            //println!("sub size: {}", s.size(false) as f64 / area.specific.size(false) as f64);
-            ////let sub_width = 2.0 * area.w * (s.size(false) as f64 / area.specific.size(false) as f64 ) ;
-            //let sub_width = (area.w / area.specific.specifics.len() as f64);
-            //let mut rect = super::Rectangle::new()
-            //    .set("x", sub_area_x)
-            //    .set("y", sub_area_y)
-            //    .set("width", sub_width)
-            //    .set("height", area.h / 2.0 )
-            //    //.set("stroke-width", border)
-            //    .set("stroke-width", 0.1)
-            //    .set("stroke", "black")
-            //    .set("opacity", 1.0)
-            //    .set("fill", "white")
-            //    ;
-            //    //group.append(rect);
-            //    results.push(rect);
-            //sub_area_x += sub_width;
-            //sub_area_y += 0.0 ;
         }
 
     results
     }
 
-    pub fn all_rects(&self, area: &Area, max_hits: usize, plot_info: &PlotInfo) -> Vec<super::Rectangle> {
+    pub fn all_rects(&self, area: &Area, plot_info: &PlotInfo) -> Vec<super::Rectangle> {
         //let mut result = self.rects_in_specifics(area, 1.0);
         //result.push(self.to_rect(area, 1.0));
         //result
-        let mut result = vec![self.to_rect(area.x, area.y, area.w, area.h, 1.0, 1.0, max_hits, plot_info)];
-        result.append(&mut self.rects_in_specifics(area.x, area.y, area.w, area.h, 1.0, 0.5, max_hits, plot_info));
+        let mut result = vec![self.to_rect(area.x, area.y, area.w, area.h, 1.0, 1.0, plot_info)];
+        result.append(&mut self.rects_in_specifics(area.x, area.y, area.w, area.h, 1.0, 0.5, plot_info));
         result
     }
 }
@@ -323,78 +296,14 @@ pub fn specs_to_hier2(specifics: &Vec<Specific>) -> Vec<Specific> {
     all_results
 }
 
-//pub fn __route_to_specifics2(routes: &Vec<Route>) -> Vec<Specific> {
-//    specs_to_hier2(&routes.iter().map(|r| Specific {network: r.prefix, datapoints: r.datapoints.clone(), specifics: Vec::new() } ).collect())
-//}
-
-//pub fn __route_to_specifics(routes: &Vec<Route>) -> Vec<Specific> {
-//    //specs_to_hier(&routes.iter().map(|r| Specific {network: r.prefix, datapoints: r.datapoints.clone(), specifics: Vec::new() } ).collect())
-//    //specs_to_hier(&routes.iter().map(|r| Specific {network: r.prefix, datapoints: Vec::new(), specifics: Vec::new() } ).collect())
-//    let mut specs: Vec<Specific> = Vec::new();
-//    for r in routes {
-//        let s = Specific {network: r.prefix, datapoints: r.datapoints.clone(), specifics: Vec::new() } ;
-//        //let s = Specific {network: r.prefix, datapoints: Vec::new(), specifics: Vec::new() } ;
-//        specs.push(s);
-//    }
-//    specs_to_hier2(&specs)
-//}
-
-/*
-pub fn __vec_to_hier(routes: &Vec<Route>) -> Vec<Specific> {
-    if routes.len() == 1 {
-        //Some( Prefix { network: routes.first().unwrap().prefix, asn: routes.first().unwrap().asn, specifics: Vec::new() } );
-    } else {
-        let mut current_route: &Route;
-        if let Some((first, rest)) = routes.split_first() {
-            println!("first: {:?}", first.prefix);
-            current_route = first;
-            let mut specifics: Vec<Specific> = Vec::new();
-            for r in rest {
-                if current_route.prefix.contains(r.prefix.ip()) {
-                    // more specific
-                    println!("more specific: {:?}", r.prefix);
-                    specifics.push(Specific {network: r.prefix, specifics: Vec::new()});
-                } else {
-                    // new prefix
-                    println!("new prefix: {:?}", r.prefix);
-
-                    // process specifics of previous first
-                    //for s in &specifics {
-                    //    println!("s: {:?}", s.network);
-                    //}
-                    println!("calling specs_to_hier");
-                    return specs_to_hier(&specifics);
-
-                    //continue
-                    //vec_to_hier(&rest.to_vec());
-                }
-            }
-       
-    }
-}
-    println!("vec_to_hier, returning empty vec");
-    vec![]
-}
-*/
-
 pub struct Area {
     pub x: f64,
     pub y: f64,
     pub w: f64,
     pub h: f64,
     pub surface: f64,
-    //pub route: Route,
     pub specific: Specific,
 }
-
-//pub struct Area2 {
-//    pub x: f64,
-//    pub y: f64,
-//    pub w: f64,
-//    pub h: f64,
-//    pub surface: f64,
-//    pub specific: Specific,
-//}
 
 pub struct Row {
     pub x: f64,
@@ -405,65 +314,7 @@ pub struct Row {
     pub areas: Vec<Area>,
 }
 
-pub struct Route {
-    pub prefix: Ipv6Network,
-    //pub asn:    u32,
-    pub asn:    String,
-    pub datapoints: Vec<super::DataPoint>,
-
-}
-
-impl Route {
-    pub fn size(&self, unsized_rectangles: bool) -> u128 {
-        if unsized_rectangles {
-            return 1u128
-        } else {
-            self.__size()
-        }
-    }
-
-    pub fn __size(&self) -> u128 {
-        //FIXME: this is just a workaround.. is there a better way to do this?
-        let mut exp = self.prefix.prefix() as u32;
-        if exp < 24 {
-            exp = 24;
-        }
-        if exp > 64 {
-            exp = 64;
-        }
-        //exp = 64; // TODO this is just to get equal sized squares
-        let r = 2_u128.pow(128 - exp);
-        r
-    }
-
-    pub fn _size(&self) -> u128 {
-        128 - self.prefix_len() as u128
-    }
-
-    pub fn to_string(&self) -> String {
-        format!("AS{}", &self.asn)
-    }
-
-    pub fn push_dp(&mut self, dp: super::DataPoint) -> () {
-        self.datapoints.push(dp);
-    }
-    pub fn prefix_len(&self) -> u8  {
-        self.prefix.prefix()
-    }
-
-    pub fn dp_avg(&self) -> f64 {
-        let sum = self.datapoints.iter().fold(0, |s, i| s + i.meta);
-        sum as f64 / self.datapoints.len() as f64
-    }
-
-    pub fn hw_avg(&self) -> f64 {
-        let sum = self.datapoints.iter().fold(0, |s, i| s + i.hamming_weight(self.prefix_len()));
-        sum as f64 / self.datapoints.len() as f64
-    }
-}
-
 impl Area {
-    //pub fn new(surface: f64, ratio: f64, route: Route) -> Area {
     pub fn new(surface: f64, ratio: f64, specific: Specific) -> Area {
         let w = surface.powf(ratio);
         let h = surface.powf(1.0 - ratio);
