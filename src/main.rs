@@ -1,8 +1,5 @@
-#![feature(i128, i128_type)]
-
 mod treemap;
-use treemap::{Area,Row};
-use treemap::*;
+use treemap::{Area,Row,DataPoint,PlotInfo,specs_to_hier,Specific};
 
 use std::collections::HashSet;
 use std::collections::HashMap;
@@ -39,8 +36,6 @@ use svg::node::element::{Rectangle, Circle, Text, Group};
 
 use ipnetwork::Ipv6Network;
 use std::net::Ipv6Addr;
-//use num::PrimInt;
-//use num::pow::pow;
 
 use std::io::{BufReader};
 use std::io::prelude::*;
@@ -54,59 +49,6 @@ const HEIGHT: f64 = 100.0;
 const PLOT_LIMIT: u64 = 2000;
 const COLOR_INPUT: &str = "hits";
 
-
-
-
-//fn _color(i: u32) -> String  {
-//    if i == 0 {
-//        "#eeeeee".to_string()
-//    } else {
-//        format!("#00{:02x}{:02x}", 0xFF-i, i)
-//    }
-//}
-
-// for things that are less spread, e.g. avg TTL, the non-log version might give better output
-// try whether some threshold within the same function works
-// e.g. if max > 1024, then log2()
-// const COLOUR_SCALE: Vec::<u32> = (0..0xff+1).map(|e| 0xff | (e << 8)).collect();
-//FIXME: recreating the scale everytime is ugly
-fn color(i: u32, max: u32) -> String {
-    if i == 0 {
-        return "#eeeeee".to_string();
-    }
-
-    let mut scale: Vec<u32> = (0..0xff+1).map(|e| 0xff | (e << 8)).collect();
-    scale.append(&mut (0..0xff+1).rev().map(|e| (0xff << 8) | e).collect::<Vec<u32>>() );
-    scale.append(&mut (0..0xff+1).map(|e| 0xff00 | (e << 16) | e).collect::<Vec<u32>>() );
-    scale.append(&mut (0..0xff+1).rev().map(|e| 0xff0000 | (e << 8)).collect::<Vec<u32>>() );
-
-    if max > 1024 {
-        let norm = scale.len() as f64 / (max as f64).log2();
-        let mut index = ((i as f64).log2() * norm) as usize;
-        //FIXME: this should not be necessary..
-        if index >= scale.len() {
-            index = scale.len() - 1;
-        }
-        if index == 0 {
-            index = 1;
-        }
-        format!("#{:06x}", scale.get(index).unwrap())
-    } else {
-        let norm = scale.len() as f64 / (max as f64);
-        let mut index = ((i as f64) * norm) as usize;
-        //FIXME: this should not be necessary..
-        if index >= scale.len() {
-            index = scale.len() - 1;
-        }
-        if index == 0 {
-            index = 1;
-        }
-        format!("#{:06x}", scale.get(index).unwrap())
-
-
-    }
-    //println!("norm: {}, index: {} , len: {}", norm, index, scale.len());
-}
 
 
 // the input for prefixes_from_file is generated a la:
@@ -162,39 +104,6 @@ struct ZmapRecordTcpmss {
     saddr: String,
     tcpmss: u16
 }
-
-#[derive(Eq,PartialEq,Hash,Clone,Debug)]
-pub struct DataPoint {
-    ip6: Ipv6Addr,
-    meta: u32, // meta value, e.g. TTL, MSS
-}
-
-impl DataPoint {
-    fn hamming_weight(&self, prefix_len: u8) -> u32 {
-        (u128::from(self.ip6) << prefix_len  >> prefix_len).count_ones()
-    }
-    fn hamming_weight_iid(&self) -> u32 {
-        self.hamming_weight(64)
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn hamming_weight() {
-        let dp = super::DataPoint { ip6: "2001:db8::1".parse().unwrap(), meta: 0 };
-        assert_eq!(dp.hamming_weight(64), 1);
-        let dp = super::DataPoint { ip6: "2001:db8::2".parse().unwrap(), meta: 0 };
-        assert_eq!(dp.hamming_weight(64), 1);
-        let dp = super::DataPoint { ip6: "2001:db8::1:1:1:1".parse().unwrap(), meta: 0 };
-        assert_eq!(dp.hamming_weight(64), 4);
-        let dp = super::DataPoint { ip6: "2001:db8::1:1:1:1".parse().unwrap(), meta: 0 };
-        assert_eq!(dp.hamming_weight(96), 2);
-        let dp = super::DataPoint { ip6: "2001:db8::3:3:3:3".parse().unwrap(), meta: 0 };
-        assert_eq!(dp.hamming_weight(64), 2+2+2+2);
-    }
-}
-
 
 fn main() {
 
@@ -264,14 +173,14 @@ fn main() {
     //TODO: do we want to filter duplicate addresses from the input file?
     // the current test file contains ~2k duplicates on 4.6M entries
     let mut uniq_ip6s: HashSet<Ipv6Addr> = HashSet::new();
-    let mut uniq_dps: HashSet<DataPoint> = HashSet::new();
+    //let mut uniq_dps: HashSet<DataPoint> = HashSet::new();
 
     let mut now = Instant::now();
     if matches.value_of("address-file").unwrap().contains(".csv") {
         // expect ZMAP output as input
         
         let mut rdr = csv::Reader::from_file(matches.value_of("address-file").unwrap()).unwrap();
-        //let iter = CSVIterator::<ZmapRecord,_>::new(&mut rdr).unwrap();
+        // TODO: add every ip to uniq_ips, so we only add new datapoints when we have not seen the IP before
         match matches.value_of("color-input").unwrap() {
             "mss" => {
                 let iter = CSVIterator::<ZmapRecordTcpmss,_>::new(&mut rdr).unwrap();
@@ -316,43 +225,6 @@ fn main() {
         //    //    //eprintln!("duplicate: {}", z.saddr.parse::<Ipv6Addr>().unwrap());
         //    //}
         //}
-        
-
-        // attempt at improving read speed:
-        /*
-        let mut file = File::open(matches.value_of("address-file").unwrap()).unwrap();
-        let mut s = String::new();
-        file.read_to_string(&mut s).unwrap();
-        let mut rdr = csv::Reader::from_string(s);
-        eprintln!("[TIME] file read: {}.{:.2}s", now.elapsed().as_secs(),  now.elapsed().subsec_nanos() / 1_000_000);
-        //let iter = CSVIterator::<ZmapRecord,_>::new(&mut rdr).unwrap();
-        let iter = CSVIterator::<ZmapRecord,_>::new(&mut rdr).unwrap();
-        let res: Vec<ZmapRecord> = iter.filter_map(|e| e.ok()).collect();
-        eprintln!("[TIME] iter.collect(): {}.{:.2}s", now.elapsed().as_secs(),  now.elapsed().subsec_nanos() / 1_000_000);
-        //for zmap_record in iter {
-        for zmap_record in res {
-            let z = zmap_record;
-            datapoints.push(
-                DataPoint { 
-                    ip6: z.saddr.parse().unwrap(),
-                    meta: z.ttl.into()
-                }
-            );
-        }
-        */
-
-
-        // this is not significantly faster:
-        //datapoints.append(&mut iter.map(|i| i.unwrap().saddr.parse().unwrap()).collect::<Vec<_>>());
-
-//
-//        for result in rdr.deserialize() {
-//            // The iterator yields Result<StringRecord, Error>, so we check the
-//            // error here.
-//            let record : ZmapRecord = result.unwrap();
-//            //println!("{:?}", record.saddr);
-//            datapoints.push(record.saddr.parse().unwrap());
-//        }
     } else {
         // expect a simple list of IPv6 addresses separated by newlines
         for line in BufReader::new(
@@ -366,7 +238,7 @@ fn main() {
     eprintln!("[TIME] file read: {}.{:.2}s", now.elapsed().as_secs(),  now.elapsed().subsec_nanos() / 1_000_000);
 
     eprintln!("uniq_ip6s: {}", uniq_ip6s.len());
-    eprintln!("uniq_dps: {}", uniq_dps.len());
+    //eprintln!("uniq_dps: {}", uniq_dps.len());
 
     now = Instant::now();
     let table = prefixes_from_file(matches.value_of("prefix-file").unwrap()).unwrap();
@@ -417,7 +289,7 @@ fn main() {
         }
     }
 
-    let mut specifics: Vec<Specific>  = specs_to_hier2(&table.into_iter().map(|(_,_,s)| s).collect());
+    let mut specifics: Vec<Specific>  = specs_to_hier(&table.into_iter().map(|(_,_,s)| s).collect());
     // without hierarchy: //TODO make this a switch
     //let mut specifics: Vec<Specific>  = (table.into_iter().map(|(_,_,s)| s).collect());
 

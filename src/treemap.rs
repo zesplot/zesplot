@@ -11,6 +11,23 @@ pub struct Specific {
     pub specifics: Vec<Specific>
 }
 
+#[derive(Eq,PartialEq,Hash,Clone,Debug)]
+pub struct DataPoint {
+    pub ip6: Ipv6Addr,
+    pub meta: u32, // meta value, e.g. TTL, MSS
+}
+
+impl DataPoint {
+    fn hamming_weight(&self, prefix_len: u8) -> u32 {
+        (u128::from(self.ip6) << prefix_len  >> prefix_len).count_ones()
+    }
+    fn hamming_weight_iid(&self) -> u32 {
+        self.hamming_weight(64)
+    }
+}
+
+
+
 pub struct PlotInfo {
     pub max_hits: usize,
     //pub max_dp: f64,
@@ -104,11 +121,11 @@ impl Specific {
             .set("width", w * w_factor)
             .set("height", h * h_factor)
             //TODO choose fill colour via PlotInfo
-            .set("fill", super::color(self.hits() as u32, plot_info.max_hits as u32)) 
+            .set("fill", color(self.hits() as u32, plot_info.max_hits as u32)) 
             //.set("fill", color(area.route.hw_avg() as u32, max_hamming_weight as u32)) 
-            //.set("fill", super::color(self.dp_avg() as u32, plot_info.max_meta as u32)) 
-            //.set("fill", super::color(self.dp_var() as u32, plot_info.max_dp_var as u32)) 
-            //.set("fill", super::color(self.dp_uniq() as u32, plot_info.max_dp_uniq as u32)) 
+            //.set("fill", color(self.dp_avg() as u32, plot_info.max_meta as u32)) 
+            //.set("fill", color(self.dp_var() as u32, plot_info.max_dp_var as u32)) 
+            //.set("fill", color(self.dp_uniq() as u32, plot_info.max_dp_uniq as u32)) 
             .set("stroke-width", w * h * 0.0005 * h_factor)
             .set("stroke", "#aaaaaa")
             .set("opacity", 1.0)
@@ -149,77 +166,6 @@ impl Specific {
     }
 }
 
-/*
-pub fn specs_to_hier(specifics: &Vec<Specific>) -> Vec<Specific> {
-    println!("in specs_to_hier");
-    let mut current_specific: &Specific;
-    if let Some((first, rest)) = specifics.split_first() {
-        println!("first: {:?}", first.network);
-        current_specific = first;
-        let mut nested_specs: Vec<Specific> = Vec::new();
-        let mut remaining_specs: Vec<Specific> = Vec::new();
-        for (i, s) in rest.iter().enumerate() {
-            if current_specific.network.contains(s.network.ip()) {
-                println!("nested s: {:?}", s.network);
-                nested_specs.push(s.clone());
-            } else {
-                println!("creating remaining_specs with {:?}", s.network);
-                current_specific = s;
-                remaining_specs = rest[i..].to_vec();
-                println!("  post remaining_specs");
-                break;
-            }
-
-        }
-        println!(" -- nested_specs, current_specific: {:?} --", first.network);
-
-        // trying add:
-        let mut result = vec![Specific { network: first.network, datapoints: Vec::new(), specifics: specs_to_hier(&nested_specs) }];
-        let mut result_remaining = specs_to_hier(&remaining_specs);
-        result.append(&mut result_remaining); //?
-        result
-
-        // attempt 2:
-        //let mut resulting_specifics = specs_to_hier(&nested_specs);
-        //resulting_specifics.append(&mut remaining_specs);
-        //let result = vec![Specific { network: first.network, specifics: resulting_specifics }];
-        //result
-
-    } else {
-        println!("could not satisfy Some(), len of specifics: {}", specifics.len());
-        // so, there is only one? specific left in the vector
-        // not necessarily, check
-        //return specifics.first().unwrap() // are we sure this is there?
-        //vec![specifics.first().unwrap().clone()]
-        vec![]
-    }
-}
-*/
-
-/*
-pub fn specs_to_hier_with_rest(specifics: &Vec<Specific>) -> (Vec<Specific>, Vec<Specific>) {
-    let mut current_specific: &Specific;
-    if let Some((first, rest)) = specifics.split_first() {
-        current_specific = first;
-        let mut nested_specs: Vec<Specific> = Vec::new();
-        let mut remaining_specs: Vec<Specific> = Vec::new();
-        for (i, s) in rest.iter().enumerate() {
-            if current_specific.network.contains(s.network.ip()) {
-                nested_specs.push(s.clone());
-            } else {
-                //current_specific = s;
-                remaining_specs = rest[i..].to_vec();
-                break;
-            }
-
-        }
-
-        let result = vec![Specific { network: first.network, datapoints: Vec::new(), specifics: specs_to_hier(&nested_specs) }];
-        return (result, remaining_specs)
-    }
-    (vec![], vec![])
-}
-*/
 
 pub fn specs_to_hier_with_rest_index(specifics: &Vec<Specific>, index: usize) -> (Vec<Specific>, usize) {
     //println!("specs_rest_index, len {} start from {}", specifics.len(), index);
@@ -247,16 +193,8 @@ pub fn specs_to_hier_with_rest_index(specifics: &Vec<Specific>, index: usize) ->
 
         }
 
-        //println!("result for network {:?}, {} nested, {} consumed", first.network, nested_specs.len(), consumed_specs);
-        //let result = if true || nested_specs.len() > 1 {
-        //    vec![Specific { network: first.network, datapoints: first.datapoints.clone(),
-        //        specifics: specs_to_hier2(&nested_specs) }]
-        //    } else {
-        //        vec![Specific { network: first.network, datapoints: first.datapoints.clone(),
-        //            specifics: nested_specs }]
-        //    };
         let result = vec![Specific { network: first.network, asn: first.asn.clone(), datapoints: first.datapoints.clone(),
-                specifics: specs_to_hier2(&nested_specs) }];
+                specifics: specs_to_hier(&nested_specs) }];
         return (result, consumed_specs)
     } else {
         println!("could not satisfy Some(), len: {}", specifics.len());
@@ -265,8 +203,7 @@ pub fn specs_to_hier_with_rest_index(specifics: &Vec<Specific>, index: usize) ->
     (vec![], 0)
 }
 
-pub fn specs_to_hier2(specifics: &Vec<Specific>) -> Vec<Specific> {
-    //println!("specs_to_hier2, specifics.len(): {} ", specifics.len());
+pub fn specs_to_hier(specifics: &Vec<Specific>) -> Vec<Specific> {
     let mut done = false;
     let mut all_results: Vec<Specific> = vec![];
     let mut start_from = 0;
@@ -423,3 +360,63 @@ impl Row {
     }
 
 }
+
+
+// for things that are less spread, e.g. avg TTL, the non-log version might give better output
+// try whether some threshold within the same function works
+// e.g. if max > 1024, then log2()
+// const COLOUR_SCALE: Vec::<u32> = (0..0xff+1).map(|e| 0xff | (e << 8)).collect();
+//FIXME: recreating the scale everytime is ugly
+
+fn color(i: u32, max: u32) -> String {
+    if i == 0 {
+        return "#eeeeee".to_string();
+    }
+
+    let mut scale: Vec<u32> = (0..0xff+1).map(|e| 0xff | (e << 8)).collect();
+    scale.append(&mut (0..0xff+1).rev().map(|e| (0xff << 8) | e).collect::<Vec<u32>>() );
+    scale.append(&mut (0..0xff+1).map(|e| 0xff00 | (e << 16) | e).collect::<Vec<u32>>() );
+    scale.append(&mut (0..0xff+1).rev().map(|e| 0xff0000 | (e << 8)).collect::<Vec<u32>>() );
+
+    if max > 1024 {
+        let norm = scale.len() as f64 / (max as f64).log2();
+        let mut index = ((i as f64).log2() * norm) as usize;
+        //FIXME: this should not be necessary..
+        if index >= scale.len() {
+            index = scale.len() - 1;
+        }
+        if index == 0 {
+            index = 1;
+        }
+        format!("#{:06x}", scale.get(index).unwrap())
+    } else {
+        let norm = scale.len() as f64 / (max as f64);
+        let mut index = ((i as f64) * norm) as usize;
+        //FIXME: this should not be necessary..
+        if index >= scale.len() {
+            index = scale.len() - 1;
+        }
+        if index == 0 {
+            index = 1;
+        }
+        format!("#{:06x}", scale.get(index).unwrap())
+    }
+}
+
+
+#[cfg(test)]
+#[test]
+fn hamming_weight() {
+    let dp = super::DataPoint { ip6: "2001:db8::1".parse().unwrap(), meta: 0 };
+    assert_eq!(dp.hamming_weight(64), 1);
+    let dp = super::DataPoint { ip6: "2001:db8::2".parse().unwrap(), meta: 0 };
+    assert_eq!(dp.hamming_weight(64), 1);
+    let dp = super::DataPoint { ip6: "2001:db8::1:1:1:1".parse().unwrap(), meta: 0 };
+    assert_eq!(dp.hamming_weight(64), 4);
+    let dp = super::DataPoint { ip6: "2001:db8::1:1:1:1".parse().unwrap(), meta: 0 };
+    assert_eq!(dp.hamming_weight(96), 2);
+    let dp = super::DataPoint { ip6: "2001:db8::3:3:3:3".parse().unwrap(), meta: 0 };
+    assert_eq!(dp.hamming_weight(64), 2+2+2+2);
+}
+
+
