@@ -43,11 +43,13 @@ __SVG__
 			+ "<br/>" 
 			+ "hits: " + $(this).data('hits')
 			+ "<br/>" 
-			+ "dp-avg: " + $(this).data('dp-avg')
+			+ "datapoints: " + $(this).data('dp-desc')
 			+ "<br/>" 
-			+ "dp-var: " + $(this).data('dp-var')
+			+ "&nbsp;&nbsp;&nbsp;avg: " + $(this).data('dp-avg')
 			+ "<br/>" 
-			+ "dp-uniq: " + $(this).data('dp-uniq')
+			+ "&nbsp;&nbsp;&nbsp;var: " + $(this).data('dp-var')
+			+ "<br/>" 
+			+ "&nbsp;&nbsp;&nbsp;uniq: " + $(this).data('dp-uniq')
 			+ "<br/>" 
 			+ "hw-avg: " + $(this).data('hw-avg')
 		);

@@ -29,7 +29,6 @@ impl DataPoint {
     }
 }
 
-
 pub enum ColourMode {
     Hits,
     DpAvg,
@@ -46,6 +45,7 @@ pub struct PlotInfo<'a> {
     pub max_dp_var: f64,
     pub max_dp_uniq: usize,
     pub colour_mode: ColourMode,
+    pub dp_desc: String,
     pub asn_colours: &'a HashMap<u32, String>
 }
 
@@ -141,27 +141,25 @@ impl Specific {
             .set("y", y)
             .set("width", w * w_factor)
             .set("height", h * h_factor)
-            .set("fill", colour(self.hits() as u32, plot_info.max_hits as u32)) 
-            //.set("fill", colour(area.route.hw_avg() as u32, max_hamming_weight as u32)) 
-            //.set("fill", colour(self.dp_avg() as u32, plot_info.max_meta as u32)) 
-            //.set("fill", colour(self.dp_var() as u32, plot_info.max_dp_var as u32)) 
-            //.set("fill", colour(self.dp_uniq() as u32, plot_info.max_dp_uniq as u32)) 
-            .set("stroke-width", w * h * 0.0005 * h_factor)
+            .set("stroke-width", 0.01_f64.max(w * h * 0.0005 * h_factor))
             .set("stroke", "#aaaaaa")
             .set("opacity", 1.0)
             .set("data-asn", self.asn.to_string())
             .set("data-prefix", self.network.to_string())
-            //TODO: add type of DP to show in tooltip, e.g. 'TTL' or 'MSS'
             .set("data-hits", self.all_hits())
+            .set("data-dp-desc", plot_info.dp_desc.clone())
             .set("data-dp-avg", format!("{:.1}", self.dp_avg()))
             .set("data-dp-var", format!("{:.1}", self.dp_var()))
             .set("data-dp-uniq", format!("{:.1}", self.dp_uniq()));
 
-        //TODO choose fill colour via PlotInfo
-        r.assign("fill", colour_from_map(self.asn(), plot_info.asn_colours));
+        match plot_info.colour_mode {
+            ColourMode::Hits => r.assign("fill", colour(self.hits() as u32, plot_info.max_hits as u32)),
+            ColourMode::DpAvg => r.assign("fill", colour(self.dp_avg() as u32, plot_info.max_dp_avg as u32)),
+            ColourMode::DpVar => r.assign("fill", colour(self.dp_var() as u32, plot_info.max_dp_var as u32)),
+            ColourMode::DpUniq => r.assign("fill", colour(self.dp_uniq() as u32, plot_info.max_dp_uniq as u32)),
+            ColourMode::Asn => r.assign("fill", colour_from_map(self.asn(), plot_info.asn_colours))
+        }
         r
-
-
             //.set("data-hw-avg", format!("{:.1}", area.route.hw_avg()))
     }
 

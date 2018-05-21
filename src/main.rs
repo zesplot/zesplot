@@ -47,7 +47,7 @@ use rand::{thread_rng, sample};
 const WIDTH: f64 = 160.0;
 const HEIGHT: f64 = 100.0;
 const PLOT_LIMIT: u64 = 2000;
-const COLOR_INPUT: &str = "hits";
+const COLOUR_INPUT: &str = "hits";
 
 
 
@@ -160,6 +160,15 @@ fn main() {
                              .takes_value(true)
                              .required(true)
                         )
+                        .arg(Arg::with_name("dp-function")
+                             .long("dp-function")
+                             .help("Base the colour on a function on the datapoints (for TTL or MSS) within a prefix:
+                                \"avg\" mean of the values
+                                \"var\" variance of the values
+                                \"uniq\" number of unique values"
+                            )
+                             .takes_value(true)
+                        )
                         .arg(Arg::with_name("asn-colours")
                             .long("asn-colours")
                             .help("Additional colours for ASNs. File should contain lines with 'ASN ID'.
@@ -219,6 +228,9 @@ fn main() {
                     );
                 }
             }
+            // TODO: do we want to default to TTL? can be confusing maybe
+            // we need to take the tooltip in the html into consideration
+            // and perhaps only show dp-avg/var/uniq when an explicit dp is passed (ie -c mss or -c ttl)
             "ttl"|_ => {
                 let iter = CSVIterator::<ZmapRecord,_>::new(&mut rdr).unwrap();
                 for zmap_record in iter {
@@ -407,10 +419,25 @@ fn main() {
     //    "hits"|_    => rect.set("fill", colour(area.route.datapoints.len() as u32, max_hits as u32)),
     //};
     let mut colour_mode = ColourMode::Hits;
-    if matches.is_present("asn-colours") {
+    
+    let dp_desc: String = match matches.value_of("colour-input").unwrap_or(COLOUR_INPUT) {
+        "ttl"   => "TTL".to_string(),
+        "mss"   => "TCP MSS".to_string(),
+        "hits"|_ => "Hits".to_string()
+    };
+
+    if matches.is_present("dp-function") {
+        colour_mode = match matches.value_of("dp-function").unwrap() {
+            "avg" => ColourMode::DpAvg,
+            "var" => ColourMode::DpVar,
+            "uniq" => ColourMode::DpUniq,
+            _   =>  colour_mode
+        };
+    } else if matches.is_present("asn-colours") {
         colour_mode = ColourMode::Asn;
     }
-    let plot_info = PlotInfo{max_hits, max_dp_avg, max_dp_var, max_dp_uniq, colour_mode, asn_colours};
+
+    let plot_info = PlotInfo{max_hits, max_dp_avg, max_dp_var, max_dp_uniq, colour_mode, dp_desc, asn_colours};
 
     let mut rows = Vec::new();
     //let (first_area, remaining_areas) = areas.split_first().unwrap();
@@ -563,7 +590,7 @@ fn main() {
         "unfiltered"
     };
     let output_fn = format!("output/{}.{}.{}.{}.svg", Path::new(matches.value_of("address-file").unwrap()).file_name().unwrap().to_str().unwrap(),
-        matches.value_of("colour-input").unwrap_or(COLOR_INPUT),
+        matches.value_of("colour-input").unwrap_or(COLOUR_INPUT),
         output_fn_sized,
         output_fn_filtered
         );
