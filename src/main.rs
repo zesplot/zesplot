@@ -177,6 +177,10 @@ fn main() {
                              .help(&format!("Limits number of areas plotted. 0 for unlimited. Default {}", PLOT_LIMIT))
                              .takes_value(true)
                         )
+                        .arg(Arg::with_name("no-labels")
+                             .long("no-labels")
+                             .help(&format!("Omit the text labels in the final plot"))
+                        )
                         .arg(Arg::with_name("create-html")
                              .long("html")
                              .help(&format!("Create HTML wrapper output in ./html"))
@@ -515,16 +519,18 @@ fn main() {
             */
 
 
-            if area.w > 0.5 {
-                let mut label = Text::new()
-                    .set("x", area.x + area.w/2.0)
-                    .set("y", area.y + area.h/2.0)
-                    .set("font-family", "mono")
-                    .set("font-size", format!("{}%", area.w.min(area.h))) // == f64::min
-                    .set("text-anchor", "middle");
-                    label.append(Tekst::new(area.specific.to_string()))
-                    ;
-                group.append(label);
+            if !matches.is_present("no-labels") {
+                if area.w > 0.5 {
+                    let mut label = Text::new()
+                        .set("x", area.x + area.w/2.0)
+                        .set("y", area.y + area.h/2.0)
+                        .set("font-family", "mono")
+                        .set("font-size", format!("{}%", area.w.min(area.h))) // == f64::min
+                        .set("text-anchor", "middle");
+                        label.append(Tekst::new(area.specific.to_string()))
+                        ;
+                    group.append(label);
+                }
             }
             groups.push(group);
 
