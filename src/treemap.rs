@@ -437,7 +437,8 @@ fn colour_from_map(asn: u32, mapping: &HashMap<u32, String>) -> String {
     }
 
     let uniq_values: HashSet<String> = HashSet::from_iter(mapping.values().cloned());
-    let uniq_sorted_values: Vec<String> = uniq_values.into_iter().collect();
+    let mut uniq_sorted_values: Vec<String> = uniq_values.into_iter().collect();
+    uniq_sorted_values.sort();
     let num_distinct_colours = uniq_sorted_values.len();
 
     let index = uniq_sorted_values.iter().position(|e| e == mapping.get(&asn).unwrap()).unwrap();
