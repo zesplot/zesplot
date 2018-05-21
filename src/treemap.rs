@@ -34,6 +34,7 @@ pub enum ColourMode {
     DpAvg,
     DpVar,
     DpUniq,
+    DpSum,
     Asn
 }
     
@@ -44,6 +45,7 @@ pub struct PlotInfo<'a> {
     pub max_dp_avg: f64,
     pub max_dp_var: f64,
     pub max_dp_uniq: usize,
+    pub max_dp_sum: usize,
     pub colour_mode: ColourMode,
     pub dp_desc: String,
     pub asn_colours: &'a HashMap<u32, String>
@@ -79,6 +81,10 @@ impl Specific {
         //tmp.len() // as usize
         hash_len
 
+    }
+
+    pub fn dp_sum(&self) -> usize {
+        self.datapoints.iter().fold(0, |s, i| s + i.meta as usize)
     }
     
     pub fn all_hits(&self) -> usize {
@@ -150,13 +156,16 @@ impl Specific {
             .set("data-dp-desc", plot_info.dp_desc.clone())
             .set("data-dp-avg", format!("{:.1}", self.dp_avg()))
             .set("data-dp-var", format!("{:.1}", self.dp_var()))
-            .set("data-dp-uniq", format!("{:.1}", self.dp_uniq()));
+            .set("data-dp-uniq", format!("{:.1}", self.dp_uniq()))
+            .set("data-dp-sum", format!("{:.1}", self.dp_sum()))
+            ;
 
         match plot_info.colour_mode {
             ColourMode::Hits => r.assign("fill", colour(self.hits() as u32, plot_info.max_hits as u32)),
             ColourMode::DpAvg => r.assign("fill", colour(self.dp_avg() as u32, plot_info.max_dp_avg as u32)),
             ColourMode::DpVar => r.assign("fill", colour(self.dp_var() as u32, plot_info.max_dp_var as u32)),
             ColourMode::DpUniq => r.assign("fill", colour(self.dp_uniq() as u32, plot_info.max_dp_uniq as u32)),
+            ColourMode::DpSum => r.assign("fill", colour(self.dp_sum() as u32, plot_info.max_dp_sum as u32)),
             ColourMode::Asn => r.assign("fill", colour_from_map(self.asn(), plot_info.asn_colours))
         }
         r

@@ -51,6 +51,8 @@ __SVG__
 			+ "<br/>" 
 			+ "&nbsp;&nbsp;&nbsp;uniq: " + $(this).data('dp-uniq')
 			+ "<br/>" 
+			+ "&nbsp;&nbsp;&nbsp;sum: " + $(this).data('dp-sum')
+			+ "<br/>" 
 			+ "hw-avg: " + $(this).data('hw-avg')
 		);
 	});

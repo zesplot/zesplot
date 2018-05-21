@@ -12,6 +12,8 @@ extern crate easy_csv;
 extern crate easy_csv_derive;
 extern crate csv;
 
+extern crate hex;
+
 use easy_csv::{CSVIterator};
 
 
@@ -118,6 +120,11 @@ struct ZmapRecord {
 struct ZmapRecordTcpmss {
     saddr: String,
     tcpmss: u16
+}
+#[derive(Debug,CSVParsable)] //Deserialize
+struct ZmapRecordDns {
+    saddr: String,
+    data: String
 }
 
 fn main() {
@@ -228,6 +235,20 @@ fn main() {
                     );
                 }
             }
+            "dns" => {
+                let iter = CSVIterator::<ZmapRecordDns,_>::new(&mut rdr).unwrap();
+                for zmap_record in iter {
+                    let z = zmap_record.unwrap();
+                    datapoints.push(
+                        DataPoint { 
+                            ip6: z.saddr.parse().unwrap(),
+                            //first bit in byte 4 is RA bit
+                            meta: ((hex::decode(z.data).unwrap()[3] & 0b1000_0000) >> 7) as u32,
+                            //  let bytes = u32::from_str_radix("41973333", 16).unwrap();
+                        }
+                    );
+                }
+            }
             // TODO: do we want to default to TTL? can be confusing maybe
             // we need to take the tooltip in the html into consideration
             // and perhaps only show dp-avg/var/uniq when an explicit dp is passed (ie -c mss or -c ttl)
@@ -313,6 +334,7 @@ fn main() {
     let mut max_dp_avg = 0f64; 
     let mut max_dp_var = 0f64;
     let mut max_dp_uniq = 0_usize;
+    let mut max_dp_sum = 0_usize;
     // maximum hamming weight: // TODO do we need avg/var?
     let mut max_hamming_weight = 0f64;
     let unsized_rectangles = matches.is_present("unsized-rectangles");
@@ -330,6 +352,9 @@ fn main() {
         }
         if s.dp_uniq() > max_dp_uniq {
             max_dp_uniq = s.dp_uniq();
+        }
+        if s.dp_sum() > max_dp_sum {
+            max_dp_sum = s.dp_sum();
         }
     }
 
@@ -423,6 +448,7 @@ fn main() {
     let dp_desc: String = match matches.value_of("colour-input").unwrap_or(COLOUR_INPUT) {
         "ttl"   => "TTL".to_string(),
         "mss"   => "TCP MSS".to_string(),
+        "dns"   => "DNS RA bit".to_string(),
         "hits"|_ => "Hits".to_string()
     };
 
@@ -431,13 +457,14 @@ fn main() {
             "avg" => ColourMode::DpAvg,
             "var" => ColourMode::DpVar,
             "uniq" => ColourMode::DpUniq,
+            "sum" => ColourMode::DpSum,
             _   =>  colour_mode
         };
     } else if matches.is_present("asn-colours") {
         colour_mode = ColourMode::Asn;
     }
 
-    let plot_info = PlotInfo{max_hits, max_dp_avg, max_dp_var, max_dp_uniq, colour_mode, dp_desc, asn_colours};
+    let plot_info = PlotInfo{max_hits, max_dp_avg, max_dp_var, max_dp_uniq, max_dp_sum, colour_mode, dp_desc, asn_colours};
 
     let mut rows = Vec::new();
     //let (first_area, remaining_areas) = areas.split_first().unwrap();

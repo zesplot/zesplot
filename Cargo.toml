@@ -16,6 +16,8 @@ easy-csv = "0.3.2"
 easy-csv-derive = "0.3.2"
 csv = "0.15"
 
+hex = "0.3.2"
+
 radix_trie = "*"
 #treebitmap = "*"
 treebitmap = {version = "*", path = "../treebitmap/"}
