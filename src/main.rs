@@ -1,5 +1,5 @@
 mod treemap;
-use treemap::{Area,Row,DataPoint,PlotInfo,specs_to_hier,Specific};
+use treemap::{Area,Row,DataPoint,PlotInfo,specs_to_hier,Specific,ColourMode};
 
 use std::collections::HashSet;
 use std::collections::HashMap;
@@ -92,6 +92,21 @@ fn prefixes_from_file<'a>(f: &'a str) -> io::Result<IpLookupTable<Ipv6Addr,Speci
     Ok(table)
 }
 
+fn asn_colours_from_file<'a>(f: &'a str) -> io::Result<HashMap<u32, String>> {
+    let mut mapping: HashMap<u32, String> = HashMap::new();
+    let mut file = File::open(f)?;
+    let mut s = String::new();
+    file.read_to_string(&mut s)?;
+    for line in s.lines() {
+        let parts = line.split_whitespace().collect::<Vec<&str>>();
+        let asn = parts[0].parse::<u32>().unwrap();
+        let id = parts[1];
+        mapping.insert(asn, id.to_string());
+    }
+
+    Ok(mapping)
+}
+
 
 #[derive(Debug,CSVParsable)] //Deserialize
 struct ZmapRecord {
@@ -134,9 +149,9 @@ fn main() {
                              .long("unsized")
                              .help("Do not size the rectangles based on prefix length, but size them all equally")
                         )
-                        .arg(Arg::with_name("color-input")
+                        .arg(Arg::with_name("colour-input")
                              .short("c")
-                             .long("color-input")
+                             .long("colour-input")
                              .help("Base the colours on any of the following:
                                 \"hits\" (default)
                                 \"hw\" (average hamming weight in prefix)
@@ -144,6 +159,12 @@ fn main() {
                                 \"ttl\" (average TTL of responses in prefix, only when using ZMAP input)")
                              .takes_value(true)
                              .required(true)
+                        )
+                        .arg(Arg::with_name("asn-colours")
+                            .long("asn-colours")
+                            .help("Additional colours for ASNs. File should contain lines with 'ASN ID'.
+                                Every unique ID will be assigned a colour on the scale.")
+                            .takes_value(true)
                         )
                         .arg(Arg::with_name("draw-hits")
                              .short("d")
@@ -181,7 +202,7 @@ fn main() {
         
         let mut rdr = csv::Reader::from_file(matches.value_of("address-file").unwrap()).unwrap();
         // TODO: add every ip to uniq_ips, so we only add new datapoints when we have not seen the IP before
-        match matches.value_of("color-input").unwrap() {
+        match matches.value_of("colour-input").unwrap() {
             "mss" => {
                 let iter = CSVIterator::<ZmapRecordTcpmss,_>::new(&mut rdr).unwrap();
                 for zmap_record in iter {
@@ -259,6 +280,13 @@ fn main() {
     if prefix_mismatches > 0 {
         let s = format!("Could not match {} addresses", prefix_mismatches).to_string().on_red().bold();
         eprintln!("{}", s);
+    }
+
+
+    // read extra ASN colour info, if any
+    let asn_colours: &mut HashMap<u32, String> = &mut HashMap::new();
+    if matches.is_present("asn-colours") {
+        *asn_colours = asn_colours_from_file(matches.value_of("asn-colours").unwrap()).unwrap();
     }
 
 
@@ -369,12 +397,16 @@ fn main() {
 
 
     //FIXME add this into plot_info
-    //let rect = match matches.value_of("color-input").unwrap_or(COLOR_INPUT) {
-    //    "hw"        => rect.set("fill", color(area.route.hw_avg() as u32, max_hamming_weight as u32)),
-    //    "ttl"|"mss" => rect.set("fill", color(area.route.dp_avg() as u32, max_meta as u32)),
-    //    "hits"|_    => rect.set("fill", color(area.route.datapoints.len() as u32, max_hits as u32)),
+    //let rect = match matches.value_of("colour-input").unwrap_or(COLOR_INPUT) {
+    //    "hw"        => rect.set("fill", colour(area.route.hw_avg() as u32, max_hamming_weight as u32)),
+    //    "ttl"|"mss" => rect.set("fill", colour(area.route.dp_avg() as u32, max_meta as u32)),
+    //    "hits"|_    => rect.set("fill", colour(area.route.datapoints.len() as u32, max_hits as u32)),
     //};
-    let plot_info = PlotInfo{max_hits, max_dp_avg, max_dp_var, max_dp_uniq};
+    let mut colour_mode = ColourMode::Hits;
+    if matches.is_present("asn-colours") {
+        colour_mode = ColourMode::Asn;
+    }
+    let plot_info = PlotInfo{max_hits, max_dp_avg, max_dp_var, max_dp_uniq, colour_mode, asn_colours};
 
     let mut rows = Vec::new();
     //let (first_area, remaining_areas) = areas.split_first().unwrap();
@@ -525,7 +557,7 @@ fn main() {
         "unfiltered"
     };
     let output_fn = format!("output/{}.{}.{}.{}.svg", Path::new(matches.value_of("address-file").unwrap()).file_name().unwrap().to_str().unwrap(),
-        matches.value_of("color-input").unwrap_or(COLOR_INPUT),
+        matches.value_of("colour-input").unwrap_or(COLOR_INPUT),
         output_fn_sized,
         output_fn_filtered
         );

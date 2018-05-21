@@ -1,7 +1,10 @@
 use ipnetwork::Ipv6Network;
 use std::net::Ipv6Addr;
 
-use std::collections::HashSet;
+use svg::Node;
+
+use std::collections::{HashMap, HashSet};
+use std::iter::FromIterator;
 
 #[derive(Debug, Clone)]
 pub struct Specific {
@@ -27,13 +30,23 @@ impl DataPoint {
 }
 
 
+pub enum ColourMode {
+    Hits,
+    DpAvg,
+    DpVar,
+    DpUniq,
+    Asn
+}
+    
 
-pub struct PlotInfo {
+pub struct PlotInfo<'a> {
     pub max_hits: usize,
     //pub max_dp: f64,
     pub max_dp_avg: f64,
     pub max_dp_var: f64,
     pub max_dp_uniq: usize,
+    pub colour_mode: ColourMode,
+    pub asn_colours: &'a HashMap<u32, String>
 }
 
 impl Specific {
@@ -114,18 +127,25 @@ impl Specific {
         format!("AS{}", &self.asn)
     }
 
+    pub fn asn(&self) -> u32 {
+        if let Ok(i) = self.asn.parse::<u32>(){
+            i
+        } else {
+            0
+        }
+    }
+
     pub fn to_rect(&self, x: f64, y: f64, w: f64, h: f64, w_factor: f64, h_factor: f64, plot_info: &PlotInfo) -> super::Rectangle {
-        super::Rectangle::new()
+        let mut r = super::Rectangle::new()
             .set("x", x)
             .set("y", y)
             .set("width", w * w_factor)
             .set("height", h * h_factor)
-            //TODO choose fill colour via PlotInfo
-            .set("fill", color(self.hits() as u32, plot_info.max_hits as u32)) 
-            //.set("fill", color(area.route.hw_avg() as u32, max_hamming_weight as u32)) 
-            //.set("fill", color(self.dp_avg() as u32, plot_info.max_meta as u32)) 
-            //.set("fill", color(self.dp_var() as u32, plot_info.max_dp_var as u32)) 
-            //.set("fill", color(self.dp_uniq() as u32, plot_info.max_dp_uniq as u32)) 
+            .set("fill", colour(self.hits() as u32, plot_info.max_hits as u32)) 
+            //.set("fill", colour(area.route.hw_avg() as u32, max_hamming_weight as u32)) 
+            //.set("fill", colour(self.dp_avg() as u32, plot_info.max_meta as u32)) 
+            //.set("fill", colour(self.dp_var() as u32, plot_info.max_dp_var as u32)) 
+            //.set("fill", colour(self.dp_uniq() as u32, plot_info.max_dp_uniq as u32)) 
             .set("stroke-width", w * h * 0.0005 * h_factor)
             .set("stroke", "#aaaaaa")
             .set("opacity", 1.0)
@@ -135,7 +155,13 @@ impl Specific {
             .set("data-hits", self.all_hits())
             .set("data-dp-avg", format!("{:.1}", self.dp_avg()))
             .set("data-dp-var", format!("{:.1}", self.dp_var()))
-            .set("data-dp-uniq", format!("{:.1}", self.dp_uniq()))
+            .set("data-dp-uniq", format!("{:.1}", self.dp_uniq()));
+
+        //TODO choose fill colour via PlotInfo
+        r.assign("fill", colour_from_map(self.asn(), plot_info.asn_colours));
+        r
+
+
             //.set("data-hw-avg", format!("{:.1}", area.route.hw_avg()))
     }
 
@@ -368,7 +394,7 @@ impl Row {
 // const COLOUR_SCALE: Vec::<u32> = (0..0xff+1).map(|e| 0xff | (e << 8)).collect();
 //FIXME: recreating the scale everytime is ugly
 
-fn color(i: u32, max: u32) -> String {
+fn colour(i: u32, max: u32) -> String {
     if i == 0 {
         return "#eeeeee".to_string();
     }
@@ -401,6 +427,21 @@ fn color(i: u32, max: u32) -> String {
         }
         format!("#{:06x}", scale.get(index).unwrap())
     }
+}
+
+// used for asn -> id mapping
+fn colour_from_map(asn: u32, mapping: &HashMap<u32, String>) -> String {
+
+    if !mapping.contains_key(&asn) {
+        return "#eeeeee".to_string();
+    }
+
+    let uniq_values: HashSet<String> = HashSet::from_iter(mapping.values().cloned());
+    let uniq_sorted_values: Vec<String> = uniq_values.into_iter().collect();
+    let num_distinct_colours = uniq_sorted_values.len();
+
+    let index = uniq_sorted_values.iter().position(|e| e == mapping.get(&asn).unwrap()).unwrap();
+    colour(index as u32, num_distinct_colours as u32)
 }
 
 
