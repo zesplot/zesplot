@@ -40,8 +40,6 @@ impl DataPoint {
         if self.meta > 128  {
             self.meta -= 1;
         }
-        //self.meta %= 64;
-        //self.meta = 64 - self.meta;
         self.meta = 64 - (self.meta % 64);
     }
 }
