@@ -27,6 +27,21 @@ impl DataPoint {
     fn hamming_weight_iid(&self) -> u32 {
         self.hamming_weight(64)
     }
+    fn ttl_to_start_value(&mut self) -> () {
+        self.meta = match self.meta {
+            0...31 => 32,
+            32...63 => 64,
+            64...127 => 128,
+            128...255 => 255,
+            _ => self.meta
+        };
+    }
+    pub fn ttl_to_path_length(&mut self) -> () {
+        if self.meta > 128  {
+            self.meta -= 1;
+        }
+        self.meta %= 64;
+    }
 }
 
 pub enum ColourMode {
@@ -86,6 +101,13 @@ impl Specific {
     pub fn dp_sum(&self) -> usize {
         self.datapoints.iter().fold(0, |s, i| s + i.meta as usize)
     }
+
+    pub fn dps_ttl_to_path_length(&mut self) -> () {
+        for mut dp in &mut self.datapoints {
+            dp.ttl_to_path_length();
+        }
+    }
+
     
     pub fn all_hits(&self) -> usize {
         &self.hits() + &self.hits_in_specifics()
@@ -468,4 +490,32 @@ fn hamming_weight() {
     assert_eq!(dp.hamming_weight(64), 2+2+2+2);
 }
 
+#[test]
+fn ttl_to_start_value() {
+    let mut dp = super::DataPoint { ip6: "2001:db8::1".parse().unwrap(), meta: 111 } ;
+    dp.ttl_to_start_value();
+    assert_eq!(dp.meta, 128);
 
+    let mut dp = super::DataPoint { ip6: "2001:db8::1".parse().unwrap(), meta: 59 } ;
+    dp.ttl_to_start_value();
+    assert_eq!(dp.meta, 64);
+
+    let mut dp = super::DataPoint { ip6: "2001:db8::1".parse().unwrap(), meta: 29 } ;
+    dp.ttl_to_start_value();
+    assert_eq!(dp.meta, 32);
+}
+
+#[test]
+fn ttl_to_path_length() {
+    let mut dp = super::DataPoint { ip6: "2001:db8::1".parse().unwrap(), meta: 111 } ;
+    dp.ttl_to_path_length();
+    assert_eq!(dp.meta, 47);
+
+    let mut dp = super::DataPoint { ip6: "2001:db8::1".parse().unwrap(), meta: 59 } ;
+    dp.ttl_to_path_length();
+    assert_eq!(dp.meta, 59);
+
+    let mut dp = super::DataPoint { ip6: "2001:db8::1".parse().unwrap(), meta: 29 } ;
+    dp.ttl_to_path_length();
+    assert_eq!(dp.meta, 29);
+}

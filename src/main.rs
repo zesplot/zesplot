@@ -262,6 +262,7 @@ fn main() {
                             meta: z.ttl.into()
                         }
                     );
+                    datapoints.last_mut().unwrap().ttl_to_path_length();
                 }
             }
         }
