@@ -167,6 +167,11 @@ fn main() {
                              .takes_value(true)
                              .required(true)
                         )
+                        .arg(Arg::with_name("scale-max")
+                            .long("--scale-max")
+                            .help("[TEMP/DEV] Overrule maximum of colour scale, only for -c hits")
+                            .takes_value(true)
+                        )
                         .arg(Arg::with_name("dp-function")
                              .long("dp-function")
                              .help("Base the colour on a function on the datapoints (for TTL or MSS) within a prefix:
@@ -357,6 +362,13 @@ fn main() {
         if s.dp_sum() > max_dp_sum {
             max_dp_sum = s.dp_sum();
         }
+    }
+
+    eprintln!("maximums (for --scale-max):");
+    eprintln!("max_hits: {}", max_hits);
+    if matches.is_present("scale-max") {
+        eprintln!("overruling max_hits, was {}, now is {}", max_hits, matches.value_of("scale-max").unwrap());
+        max_hits = matches.value_of("scale-max").unwrap().parse::<usize>().unwrap();
     }
 
     let mut specifics: Vec<Specific>  = specs_to_hier(&table.into_iter().map(|(_,_,s)| s).collect());
