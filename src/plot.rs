@@ -13,10 +13,11 @@ pub const COLOUR_INPUT: &str = "hits";
 const LABEL_DP_DESC_HEIGHT: f64 = 6.0;      // height of the datapoint description label (e.g. var(TTL))
 const LEGEND_GRADIENT_WIDTH: f64 = 3.0;     // width of the gradient itself
 const LEGEND_GRADIENT_MARGIN: f64 = 2.0;    // margin between gradient and the plot and the ticks
-const LEGEND_GRADIENT_HEIGHT: f64 = HEIGHT - LABEL_DP_DESC_HEIGHT;     // width of the gradient itself
+const LEGEND_GRADIENT_HEIGHT: f64 = HEIGHT; // - LABEL_DP_DESC_HEIGHT;     // width of the gradient itself
 
-const TICK_FIRST_Y: f64 = LABEL_DP_DESC_HEIGHT * 1.5; 
+const TICK_FIRST_Y: f64 = 0.0; //LABEL_DP_DESC_HEIGHT * 1.5; 
 const TICK_HEIGHT_DELTA: f64 = LEGEND_GRADIENT_HEIGHT / 4.0; // 4.0 because we have 5 ticks, so 4 spaces in between
+const TICK_X: f64 = WIDTH + LEGEND_GRADIENT_WIDTH + 2.0*LEGEND_GRADIENT_MARGIN ; // FIXME 5.0 for Tekst width?
 pub const LEGEND_MARGIN_W: f64 = LEGEND_GRADIENT_WIDTH + 2.0*LEGEND_GRADIENT_MARGIN + 20.0; // FIXME 5.0 for Tekst width?
 //pub const LEGEND_MARGIN_Y: f64 = LEGEND_GRADIENT_WIDTH + 2.0*LEGEND_GRADIENT_MARGIN + 25.0; // FIXME 5.0 for Tekst width?
 
@@ -59,7 +60,7 @@ pub fn legend(plot_info: &PlotInfo) -> (Definitions, Group) {
 
     let legend = Rectangle::new()
                     .set("x", WIDTH + LEGEND_GRADIENT_MARGIN)
-                    .set("y", LABEL_DP_DESC_HEIGHT)
+                    .set("y", 0)
                     .set("width", LEGEND_GRADIENT_WIDTH)
                     .set("height", LEGEND_GRADIENT_HEIGHT)
                     .set("stroke-width", 0.1)
@@ -109,7 +110,7 @@ pub fn legend(plot_info: &PlotInfo) -> (Definitions, Group) {
 
     let mut legend_label_100 = Text::new()
         .set("x", WIDTH + LEGEND_GRADIENT_WIDTH + LEGEND_GRADIENT_MARGIN*2.0)
-        .set("y", 2.0 + TICK_FIRST_Y + TICK_HEIGHT_DELTA*0.0)
+        .set("y", 5.0 + TICK_FIRST_Y + TICK_HEIGHT_DELTA*0.0)
         .set("font-family", "serif")
         .set("font-size", tick_font_size.clone())
         .set("text-anchor", "left");
@@ -142,7 +143,7 @@ pub fn legend(plot_info: &PlotInfo) -> (Definitions, Group) {
         ;
     let mut legend_label_0 = Text::new()
         .set("x", WIDTH + LEGEND_GRADIENT_WIDTH + LEGEND_GRADIENT_MARGIN*2.0)
-        .set("y", -4.0 + TICK_FIRST_Y + TICK_HEIGHT_DELTA*4.0)
+        .set("y", TICK_FIRST_Y + TICK_HEIGHT_DELTA*4.0)
         .set("font-family", "serif")
         .set("font-size", tick_font_size.clone())
         .set("text-anchor", "left");
@@ -163,17 +164,28 @@ pub fn legend(plot_info: &PlotInfo) -> (Definitions, Group) {
             ColourMode::DpVar   => format!("var({})",   plot_info.dp_desc),
             ColourMode::DpUniq  => format!("uniq({})",  plot_info.dp_desc),
             ColourMode::DpSum   => format!("sum({})",   plot_info.dp_desc),
-            _   =>  "todo".to_string(), //colour_mode
+            _   =>  "Responses".to_string(), //colour_mode
         };
 
+    // TODO: more precise way of determining actual maximum width
+    // the second or fourth tick could still be longer than the middle one
+    let ticks_max_width = (tick_label(legend_50).len() * 5) as f64 + 1.0;
+
     let mut legend_dp_desc = Text::new()
-        .set("x", WIDTH + LEGEND_GRADIENT_MARGIN*1.0)
-        .set("y", LABEL_DP_DESC_HEIGHT - 2.0)
+        //.set("x", WIDTH + LEGEND_GRADIENT_MARGIN*1.0)
+        //.set("y", LABEL_DP_DESC_HEIGHT - 2.0)
         .set("font-family", "serif")
-        .set("font-size", tick_font_size.clone());
-        //.set("alignment-baseline", "hanging"); // this does not work in firefox
-        legend_dp_desc.append(Tekst::new(dp_desc_text))
+        .set("font-size", tick_font_size.clone())
+        // vertical:
+        .set("writing-mode", "tb-rl")
+        .set("x", TICK_X + ticks_max_width)
+        .set("y", HEIGHT / 2.0)
+        .set("text-anchor", "middle")
         ;
+        
+
+        //.set("alignment-baseline", "hanging"); // this does not work in firefox
+        legend_dp_desc.append(Tekst::new(dp_desc_text));
     
     legend_g.append(legend_dp_desc);
 

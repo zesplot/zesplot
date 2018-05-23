@@ -21,21 +21,25 @@ __SVG__
 			+ $(this).data('prefix')
 			+ "<br/>" 
 			+ "hits: " + $(this).data('hits') + " (" + $(this).data('self-hits') + ")"
-			+ "<br/>" 
-			+ "datapoints: " + $(this).data('dp-desc')
-			+ "<br/>" 
-			+ "&nbsp;&nbsp;&nbsp;avg: " + $(this).data('dp-avg')
-			+ "<br/>" 
-			+ "&nbsp;&nbsp;&nbsp;median: " + $(this).data('dp-median')
-			+ "<br/>" 
-			+ "&nbsp;&nbsp;&nbsp;var: " + $(this).data('dp-var')
-			+ "<br/>" 
-			+ "&nbsp;&nbsp;&nbsp;uniq: " + $(this).data('dp-uniq')
-			+ "<br/>" 
-			+ "&nbsp;&nbsp;&nbsp;sum: " + $(this).data('dp-sum')
-			+ "<br/>" 
-			+ "hw-avg: " + $(this).data('hw-avg')
-		);
+			+ "<br/>"
+        );
+        if ($(this).data('dp-desc') != 'Hits') {
+            $.data(this, 'powertip', $.data(this, 'powertip')
+                + "datapoints: " + $(this).data('dp-desc')
+                + "<br/>" 
+                + "&nbsp;&nbsp;&nbsp;avg: " + $(this).data('dp-avg')
+                + "<br/>" 
+                + "&nbsp;&nbsp;&nbsp;median: " + $(this).data('dp-median')
+                + "<br/>" 
+                + "&nbsp;&nbsp;&nbsp;var: " + $(this).data('dp-var')
+                + "<br/>" 
+                + "&nbsp;&nbsp;&nbsp;uniq: " + $(this).data('dp-uniq')
+                + "<br/>" 
+                + "&nbsp;&nbsp;&nbsp;sum: " + $(this).data('dp-sum')
+                //+ "<br/>" 
+                //+ "hw-avg: " + $(this).data('hw-avg')
+		    );
+        }
 	});
 	$('rect').powerTip({
 		followMouse: true

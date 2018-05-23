@@ -463,6 +463,9 @@ fn main() {
         };
     } else if matches.is_present("asn-colours") {
         colour_mode = ColourMode::Asn;
+    } else if dp_desc == "TTL" || dp_desc == "TCP MSS" { //ugly..
+        eprintln!("in else");
+        colour_mode = ColourMode::DpAvg;
     }
 
     let plot_info = PlotInfo{max_hits, max_dp_avg, max_dp_median, max_dp_var, max_dp_uniq, max_dp_sum, colour_mode, dp_desc, asn_colours};

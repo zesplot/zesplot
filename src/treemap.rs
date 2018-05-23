@@ -70,7 +70,18 @@ pub struct PlotInfo<'a> {
     pub asn_colours: &'a HashMap<u32, String>
 }
 
-pub fn median(s: Vec<u32>) -> f64 {
+pub fn var(s: &Vec<u32>) -> f64 {
+    if s.len() < 2 {
+        return 0.0;
+    }
+    let sum: u32 = s.iter().sum();
+    let mean = sum as f64 / s.len() as f64;
+    let var = s.iter().fold(0.0, |var, dp| var as f64 + (*dp as f64 - mean).powf(2.0) ) / (s.len() -1) as f64;
+    var
+}
+
+
+pub fn median(s: &Vec<u32>) -> f64 {
     if s.len() == 0 {
         return 0.0;
     }
@@ -83,6 +94,7 @@ pub fn median(s: Vec<u32>) -> f64 {
     }
 }
 
+
 impl Specific {
     pub fn push_dp(&mut self, dp: super::DataPoint) -> () {
         self.datapoints.push(dp);
@@ -94,14 +106,15 @@ impl Specific {
     }
 
     pub fn dp_var(&self) -> f64 {
-        let sum = self.datapoints.iter().fold(0, |sum, dp| sum + dp.meta);
-        let mean = sum as f64 / self.datapoints.len() as f64;
-        let var = self.datapoints.iter().fold(0.0, |var, dp| var as f64 + (dp.meta as f64 - mean).powf(2.0) ) / (self.datapoints.len() -1) as f64;
-        var
+        var(&self.datapoints.iter().map(|dp| dp.meta).collect())
+        //let sum = self.datapoints.iter().fold(0, |sum, dp| sum + dp.meta);
+        //let mean = sum as f64 / self.datapoints.len() as f64;
+        //let var = self.datapoints.iter().fold(0.0, |var, dp| var as f64 + (dp.meta as f64 - mean).powf(2.0) ) / (self.datapoints.len() -1) as f64;
+        //var
     }
 
     pub fn dp_median(&self) -> f64 {
-        median(self.datapoints.iter().map(|dp| dp.meta).collect())
+        median(&self.datapoints.iter().map(|dp| dp.meta).collect())
     }
 
     pub fn dp_uniq(&self) -> usize {
@@ -543,9 +556,29 @@ fn ttl_to_path_length() {
     dp.ttl_to_path_length();
     assert_eq!(dp.meta, 35);
 }
+#[test]
+fn test_var() {
+    let s: Vec<u32> = vec![];
+    assert_eq!(var(&s), 0.0);
+
+    let s: Vec<u32> = vec![1];
+    assert_eq!(var(&s), 0.0);
+
+    let s: Vec<u32> = vec![1,2,3];
+    assert_eq!(var(&s), 1.0);
+
+    let s: Vec<u32> = vec![10,20,30];
+    assert_eq!(var(&s), 100.0);
+
+    let s: Vec<u32> = vec![10,10,10,10,10,10,10,11];
+    assert_eq!(var(&s), 0.125);
+}
 
 #[test]
 fn test_median() {
+    let s: Vec<u32> = vec![];
+    assert_eq!(median(&s), 0.0);
+
     let s: Vec<u32> = vec![1];
     assert_eq!(median(&s), 1.0);
 
@@ -560,5 +593,4 @@ fn test_median() {
 
     let s: Vec<u32> = vec![9, 8, 3, 1];
     assert_eq!(median(&s), 5.5);
-
 }
