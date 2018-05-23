@@ -566,6 +566,7 @@ fn main() {
             if !matches.is_present("no-labels") {
                 if area.w > 0.5 {
                     let mut label = Text::new()
+                        .set("class", "label")
                         .set("x", area.x + area.w/2.0)
                         .set("y", area.y + area.h/2.0)
                         .set("font-family", "mono")
