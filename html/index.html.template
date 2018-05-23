@@ -21,7 +21,7 @@ __SVG__
 			+ "<br/>" 
 			+ $(this).data('prefix')
 			+ "<br/>" 
-			+ "hits: " + $(this).data('hits')
+			+ "hits: " + $(this).data('hits') + "(" + $(this).data('self-hits') + ")"
 			+ "<br/>" 
 			+ "dp-avg: " + $(this).data('dp-avg')
 			+ "<br/>" 
@@ -41,7 +41,7 @@ __SVG__
 			+ "<br/>" 
 			+ $(this).data('prefix')
 			+ "<br/>" 
-			+ "hits: " + $(this).data('hits')
+			+ "hits: " + $(this).data('hits') + " (" + $(this).data('self-hits') + ")"
 			+ "<br/>" 
 			+ "datapoints: " + $(this).data('dp-desc')
 			+ "<br/>" 

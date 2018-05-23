@@ -174,6 +174,7 @@ impl Specific {
             .set("opacity", 1.0)
             .set("data-asn", self.asn.to_string())
             .set("data-prefix", self.network.to_string())
+            .set("data-self-hits", self.hits())
             .set("data-hits", self.all_hits())
             .set("data-dp-desc", plot_info.dp_desc.clone())
             .set("data-dp-avg", format!("{:.1}", self.dp_avg()))
