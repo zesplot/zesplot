@@ -48,13 +48,6 @@ use std::path::Path;
 
 use rand::{thread_rng, sample};
 
-//const WIDTH: f64 = 160.0;
-//const HEIGHT: f64 = 100.0;
-//const PLOT_LIMIT: u64 = 2000;
-//const COLOUR_INPUT: &str = "hits";
-
-
-
 // the input for prefixes_from_file is generated a la:
 // ./bgpdump -M latest-bview.gz | ack "::/" cut -d'|' -f 6,7 --output-delimiter=" " | awk '{print $1,$NF}' |sort -u
 // now, this still includes 6to4 2002::/16 announcements
@@ -281,24 +274,6 @@ fn main() {
                 }
             }
         }
-        //for zmap_record in iter {
-        //    let z = zmap_record.unwrap();
-        //    datapoints.push(
-        //        DataPoint { 
-        //            ip6: z.saddr.parse().unwrap(),
-        //            meta: z.tcpmss.into()
-        //        }
-        //    );
-        //    //uniq_dps.insert(
-        //    //    DataPoint { 
-        //    //        ip6: z.saddr.parse().unwrap(),
-        //    //        meta: z.ttl.into()
-        //    //    }
-        //    //);
-        //    //if !uniq_ip6s.insert(z.saddr.parse().unwrap()) {
-        //    //    //eprintln!("duplicate: {}", z.saddr.parse::<Ipv6Addr>().unwrap());
-        //    //}
-        //}
     } else {
         // expect a simple list of IPv6 addresses separated by newlines
         for line in BufReader::new(
@@ -463,12 +438,6 @@ fn main() {
     }
 
 
-    //FIXME add this into plot_info
-    //let rect = match matches.value_of("colour-input").unwrap_or(COLOR_INPUT) {
-    //    "hw"        => rect.set("fill", colour(area.route.hw_avg() as u32, max_hamming_weight as u32)),
-    //    "ttl"|"mss" => rect.set("fill", colour(area.route.dp_avg() as u32, max_meta as u32)),
-    //    "hits"|_    => rect.set("fill", colour(area.route.datapoints.len() as u32, max_hits as u32)),
-    //};
     let mut colour_mode = ColourMode::Hits;
     
     let dp_desc: String = match matches.value_of("colour-input").unwrap_or(plot::COLOUR_INPUT) {
@@ -527,16 +496,11 @@ fn main() {
 
     //eprintln!("-- creating svg");
 
-    //let mut rects: Vec<Rectangle> = Vec::new();
-    //let mut labels: Vec<Text> = Vec::new();
     let mut groups: Vec<Group> = Vec::new();
     let mut areas_plotted: u64 = 0;
 
-    //let plot_limit = matches.value_of("plot-limit").unwrap_or(PLOT_LIMIT);
     let plot_limit = value_t!(matches, "plot-limit", u64).unwrap_or(plot::PLOT_LIMIT);
-    //eprintln!("plot_limit: {}", plot_limit);
     for row in rows {
-        //println!("new row: {}", direction);
         
         if plot_limit > 0 && areas_plotted >= plot_limit {
             break;
@@ -620,128 +584,6 @@ fn main() {
         }
     }
 
-/*
-    // vertical:
-    // <linearGradient id="Gradient2" x1="0" x2="0" y1="0" y2="1">
-
-    let mut defs = Definitions::new();
-    let mut gradient = LinearGradient::new()
-                            .set("id", "grad0")
-                            .set("x1", "0")
-                            .set("x2", "0")
-                            .set("y1", "0")
-                            .set("y2", "1");
-
-    // 100% == top of gradient
-    gradient.append(Stop::new()
-                        .set("offset", "0%")
-                        .set("stop-color", "#ff0000")
-                        );
-    gradient.append(Stop::new()
-                        .set("offset", "25%")
-                        .set("stop-color", "#ffff00")
-                        );
-    gradient.append(Stop::new()
-                        .set("offset", "50%")
-                        .set("stop-color", "#00ff00")
-                        );
-    gradient.append(Stop::new()
-                        .set("offset", "75%")
-                        .set("stop-color", "#00ffff")
-                        );
-    gradient.append(Stop::new()
-                        .set("offset", "100%")
-                        .set("stop-color", "#0000ff")
-                        );
-    defs.append(gradient);
-
-    let LEGEND_GRADIENT_WIDTH: f64 = 3.0;  // width of the gradient itself
-    let LEGEND_GRADIENT_MARGIN: f64 = 2.0; // margin between gradient and the plot and the ticks
-
-    let LEGEND_MARGIN: f64 = LEGEND_GRADIENT_WIDTH + 2.0*LEGEND_GRADIENT_MARGIN + 5.0; // FIXME 5.0 for Tekst width?
-    let legend = Rectangle::new()
-                    .set("x", WIDTH + LEGEND_GRADIENT_MARGIN)
-                    .set("y", 0)
-                    .set("width", LEGEND_GRADIENT_WIDTH)
-                    .set("height", HEIGHT)
-                    .set("stroke-width", 1)
-                    .set("stroke", "#aaaaaa")
-                    .set("opacity", 1.0)
-                    .set("fill", "url(#grad0)")
-                    ;
-
-    // ticks
-
-    // match on colour_mode, find out which max to use and create a title a la var(ttl)
-    let legend_100 = match plot_info.colour_mode {
-        ColourMode::Hits => plot_info.max_hits as f64,
-        ColourMode::DpAvg => plot_info.max_dp_avg as f64,
-        ColourMode::DpVar => plot_info.max_dp_var as f64,
-        ColourMode::DpUniq =>plot_info.max_dp_uniq as f64,
-        ColourMode::DpSum => plot_info.max_dp_sum as f64,
-        ColourMode::Asn => 5.0, //FIXME how do we do a scale based on plot_info.asn_colours ?
-    };
-
-    let norm = 1024.0 / (legend_100 as f64).log2();
-    // round of max
-    let legend_75 = 2_f64.powf(786_f64 / norm);
-    let legend_50 = 2_f64.powf(512_f64 / norm);
-    let legend_25 = 2_f64.powf(256_f64 / norm);
-    let legend_0 = 1;
-    //let legend_max_rounded = legend_max / 
-
-
-    let mut legend_label_100 = Text::new()
-        .set("x", WIDTH + LEGEND_GRADIENT_WIDTH + LEGEND_GRADIENT_MARGIN*2.0)
-        .set("y", "2")
-        .set("font-family", "mono")
-        .set("font-size", format!("{}%", 20))
-        .set("text-anchor", "left");
-        legend_label_100.append(Tekst::new(format!("{:.0}", legend_100)))
-        ;
-    let mut legend_label_75 = Text::new()
-        .set("x", WIDTH + LEGEND_GRADIENT_WIDTH + LEGEND_GRADIENT_MARGIN*2.0)
-        .set("y", HEIGHT / 2.0 / 2.0)
-        .set("font-family", "mono")
-        .set("font-size", format!("{}%", 20))
-        .set("text-anchor", "left");
-        legend_label_75.append(Tekst::new(format!("{:.0}", legend_75)))
-        ;
-    let mut legend_label_50 = Text::new()
-        .set("x", WIDTH + LEGEND_GRADIENT_WIDTH + LEGEND_GRADIENT_MARGIN*2.0)
-        .set("y", HEIGHT / 2.0)
-        .set("font-family", "mono")
-        .set("font-size", format!("{}%", 20))
-        .set("text-anchor", "left");
-        legend_label_50.append(Tekst::new(format!("{:.0}", legend_50)))
-        ;
-    let mut legend_label_25 = Text::new()
-        .set("x", WIDTH + LEGEND_GRADIENT_WIDTH + LEGEND_GRADIENT_MARGIN*2.0)
-        .set("y", HEIGHT - (HEIGHT / 2.0 / 2.0))
-        .set("font-family", "mono")
-        .set("font-size", format!("{}%", 20))
-        .set("text-anchor", "left");
-        legend_label_25.append(Tekst::new(format!("{:.0}", legend_25)))
-        ;
-    let mut legend_label_0 = Text::new()
-        .set("x", WIDTH + LEGEND_GRADIENT_WIDTH + LEGEND_GRADIENT_MARGIN*2.0)
-        .set("y", HEIGHT)
-        .set("font-family", "mono")
-        .set("font-size", format!("{}%", 20))
-        .set("text-anchor", "left");
-        legend_label_0.append(Tekst::new(format!("{:.0}", legend_0)))
-        ;
-
-    let mut legend_g = Group::new();
-    legend_g.append(legend);
-    legend_g.append(legend_label_100);
-    legend_g.append(legend_label_75);
-    legend_g.append(legend_label_50);
-    legend_g.append(legend_label_25);
-    legend_g.append(legend_label_0);
-
-
-*/
     let (defs, legend_g) = plot::legend(&plot_info);
 
     eprintln!("plotting {} rectangles, limit was {}", areas_plotted, plot_limit);
