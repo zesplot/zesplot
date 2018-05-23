@@ -49,6 +49,7 @@ impl DataPoint {
 pub enum ColourMode {
     Hits,
     DpAvg,
+    DpMedian,
     DpVar,
     DpUniq,
     DpSum,
@@ -60,12 +61,26 @@ pub struct PlotInfo<'a> {
     pub max_hits: usize,
     //pub max_dp: f64,
     pub max_dp_avg: f64,
+    pub max_dp_median: f64,
     pub max_dp_var: f64,
     pub max_dp_uniq: usize,
     pub max_dp_sum: usize,
     pub colour_mode: ColourMode,
     pub dp_desc: String,
     pub asn_colours: &'a HashMap<u32, String>
+}
+
+pub fn median(s: Vec<u32>) -> f64 {
+    if s.len() == 0 {
+        return 0.0;
+    }
+    let mut sorted = s.clone();
+    sorted.sort();
+    if sorted.len() % 2  == 0 {
+        ((*sorted.get(sorted.len() / 2).unwrap() as f64 + *sorted.get(sorted.len() / 2 - 1).unwrap() as f64) / 2.0) as f64
+    } else {
+        *sorted.get(sorted.len() / 2).unwrap() as f64
+    }
 }
 
 impl Specific {
@@ -77,12 +92,16 @@ impl Specific {
         let sum = self.datapoints.iter().fold(0, |s, i| s + i.meta);
         sum as f64 / self.datapoints.len() as f64
     }
-// var = ((Array[n] - mean) * (Array[n] - mean)) / numPoints;
+
     pub fn dp_var(&self) -> f64 {
         let sum = self.datapoints.iter().fold(0, |sum, dp| sum + dp.meta);
         let mean = sum as f64 / self.datapoints.len() as f64;
-        let var = self.datapoints.iter().fold(0.0, |var, dp| var as f64 + (dp.meta as f64 - mean).powf(2.0) ) / self.datapoints.len() as f64;
+        let var = self.datapoints.iter().fold(0.0, |var, dp| var as f64 + (dp.meta as f64 - mean).powf(2.0) ) / (self.datapoints.len() -1) as f64;
         var
+    }
+
+    pub fn dp_median(&self) -> f64 {
+        median(self.datapoints.iter().map(|dp| dp.meta).collect())
     }
 
     pub fn dp_uniq(&self) -> usize {
@@ -180,6 +199,7 @@ impl Specific {
             .set("data-hits", self.all_hits())
             .set("data-dp-desc", plot_info.dp_desc.clone())
             .set("data-dp-avg", format!("{:.1}", self.dp_avg()))
+            .set("data-dp-median", format!("{:.1}", self.dp_median()))
             .set("data-dp-var", format!("{:.1}", self.dp_var()))
             .set("data-dp-uniq", format!("{:.1}", self.dp_uniq()))
             .set("data-dp-sum", format!("{:.1}", self.dp_sum()))
@@ -188,6 +208,7 @@ impl Specific {
         match plot_info.colour_mode {
             ColourMode::Hits => r.assign("fill", colour(self.hits() as u32, plot_info.max_hits as u32)),
             ColourMode::DpAvg => r.assign("fill", colour(self.dp_avg() as u32, plot_info.max_dp_avg as u32)),
+            ColourMode::DpMedian => r.assign("fill", colour(self.dp_avg() as u32, plot_info.max_dp_median as u32)),
             ColourMode::DpVar => r.assign("fill", colour(self.dp_var() as u32, plot_info.max_dp_var as u32)),
             ColourMode::DpUniq => r.assign("fill", colour(self.dp_uniq() as u32, plot_info.max_dp_uniq as u32)),
             ColourMode::DpSum => r.assign("fill", colour(self.dp_sum() as u32, plot_info.max_dp_sum as u32)),
@@ -512,13 +533,32 @@ fn ttl_to_start_value() {
 fn ttl_to_path_length() {
     let mut dp = super::DataPoint { ip6: "2001:db8::1".parse().unwrap(), meta: 111 } ;
     dp.ttl_to_path_length();
-    assert_eq!(dp.meta, 47);
+    assert_eq!(dp.meta, 17);
 
     let mut dp = super::DataPoint { ip6: "2001:db8::1".parse().unwrap(), meta: 59 } ;
     dp.ttl_to_path_length();
-    assert_eq!(dp.meta, 59);
+    assert_eq!(dp.meta, 5);
 
     let mut dp = super::DataPoint { ip6: "2001:db8::1".parse().unwrap(), meta: 29 } ;
     dp.ttl_to_path_length();
-    assert_eq!(dp.meta, 29);
+    assert_eq!(dp.meta, 35);
+}
+
+#[test]
+fn test_median() {
+    let s: Vec<u32> = vec![1];
+    assert_eq!(median(&s), 1.0);
+
+    let s: Vec<u32> = vec![0, 1];
+    assert_eq!(median(&s), 0.5);
+
+    let s: Vec<u32> = vec![0, 1, 2];
+    assert_eq!(median(&s), 1.0);
+
+    let s: Vec<u32> = vec![9, 9, 8, 3, 1];
+    assert_eq!(median(&s), 8.0);
+
+    let s: Vec<u32> = vec![9, 8, 3, 1];
+    assert_eq!(median(&s), 5.5);
+
 }

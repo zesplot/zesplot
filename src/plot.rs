@@ -74,18 +74,35 @@ pub fn legend(plot_info: &PlotInfo) -> (Definitions, Group) {
     let legend_100 = match plot_info.colour_mode {
         ColourMode::Hits => plot_info.max_hits as f64,
         ColourMode::DpAvg => plot_info.max_dp_avg as f64,
+        ColourMode::DpMedian => plot_info.max_dp_median as f64,
         ColourMode::DpVar => plot_info.max_dp_var as f64,
         ColourMode::DpUniq =>plot_info.max_dp_uniq as f64,
         ColourMode::DpSum => plot_info.max_dp_sum as f64,
         ColourMode::Asn => 5.0, //FIXME how do we do a scale based on plot_info.asn_colours ?
     };
 
-    let norm = 1024.0 / (legend_100 as f64).log2();
-    // round of max
-    let legend_75 = 2_f64.powf(786_f64 / norm);
-    let legend_50 = 2_f64.powf(512_f64 / norm);
-    let legend_25 = 2_f64.powf(256_f64 / norm);
-    let legend_0 = 1.0;
+    let norm = if legend_100 > 1024.0 {
+        1024.0 / (legend_100 as f64).log2()
+    } else {
+        1024.0 / legend_100 as f64
+    };
+
+    let legend_75; 
+    let legend_50; 
+    let legend_25; 
+    let legend_0 ;
+
+    if legend_100 > 1024.0 {
+        legend_75 = 2_f64.powf(786_f64 / norm);
+        legend_50 = 2_f64.powf(512_f64 / norm);
+        legend_25 = 2_f64.powf(256_f64 / norm);
+        legend_0 = 1.0;
+    } else {
+        legend_75 = (786_f64 / norm);
+        legend_50 = (512_f64 / norm);
+        legend_25 = (256_f64 / norm);
+        legend_0 = 1.0;
+    }
 
     //let tick_font_size = HEIGHT / 20.0; //format!("{}", );
     let tick_font_size = "40%";
@@ -142,6 +159,7 @@ pub fn legend(plot_info: &PlotInfo) -> (Definitions, Group) {
 
     let dp_desc_text = match plot_info.colour_mode {
             ColourMode::DpAvg   => format!("mean({})",  plot_info.dp_desc),
+            ColourMode::DpMedian   => format!("median({})",  plot_info.dp_desc),
             ColourMode::DpVar   => format!("var({})",   plot_info.dp_desc),
             ColourMode::DpUniq  => format!("uniq({})",  plot_info.dp_desc),
             ColourMode::DpSum   => format!("sum({})",   plot_info.dp_desc),

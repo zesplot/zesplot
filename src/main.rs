@@ -179,6 +179,7 @@ fn main() {
                              .long("dp-function")
                              .help("Base the colour on a function on the datapoints (for TTL or MSS) within a prefix:
                                 \"avg\" mean of the values
+                                \"median\" median of the values
                                 \"var\" variance of the values
                                 \"uniq\" number of unique values"
                             )
@@ -323,6 +324,7 @@ fn main() {
     let mut max_hits = 0;
     // based on DataPoint.meta, e.g. TTL, MSS:
     let mut max_dp_avg = 0f64; 
+    let mut max_dp_median = 0f64; 
     let mut max_dp_var = 0f64;
     let mut max_dp_uniq = 0_usize;
     let mut max_dp_sum = 0_usize;
@@ -337,6 +339,9 @@ fn main() {
         // based on dp.meta:
         if s.dp_avg() > max_dp_avg {
             max_dp_avg = s.dp_avg();
+        }
+        if s.dp_median() > max_dp_median {
+            max_dp_median = s.dp_median();
         }
         if s.dp_var() > max_dp_var {
             max_dp_var = s.dp_var();
@@ -450,6 +455,7 @@ fn main() {
     if matches.is_present("dp-function") {
         colour_mode = match matches.value_of("dp-function").unwrap() {
             "avg" => ColourMode::DpAvg,
+            "median" => ColourMode::DpMedian,
             "var" => ColourMode::DpVar,
             "uniq" => ColourMode::DpUniq,
             "sum" => ColourMode::DpSum,
@@ -459,7 +465,7 @@ fn main() {
         colour_mode = ColourMode::Asn;
     }
 
-    let plot_info = PlotInfo{max_hits, max_dp_avg, max_dp_var, max_dp_uniq, max_dp_sum, colour_mode, dp_desc, asn_colours};
+    let plot_info = PlotInfo{max_hits, max_dp_avg, max_dp_median, max_dp_var, max_dp_uniq, max_dp_sum, colour_mode, dp_desc, asn_colours};
 
     let mut rows = Vec::new();
     //let (first_area, remaining_areas) = areas.split_first().unwrap();

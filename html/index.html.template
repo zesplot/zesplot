@@ -26,6 +26,8 @@ __SVG__
 			+ "<br/>" 
 			+ "&nbsp;&nbsp;&nbsp;avg: " + $(this).data('dp-avg')
 			+ "<br/>" 
+			+ "&nbsp;&nbsp;&nbsp;median: " + $(this).data('dp-median')
+			+ "<br/>" 
 			+ "&nbsp;&nbsp;&nbsp;var: " + $(this).data('dp-var')
 			+ "<br/>" 
 			+ "&nbsp;&nbsp;&nbsp;uniq: " + $(this).data('dp-uniq')
