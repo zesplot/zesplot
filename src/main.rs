@@ -590,7 +590,7 @@ fn main() {
     eprintln!("plotting {} rectangles, limit was {}", areas_plotted, plot_limit);
 
     let mut document = Document::new()
-                        .set("viewBox", (0, 0, plot::WIDTH + plot::LEGEND_MARGIN as f64, plot::HEIGHT))
+                        .set("viewBox", (0, 0, plot::WIDTH + plot::LEGEND_MARGIN_W as f64, plot::HEIGHT))
                         .set("id", "treeplot")
                         ;
     for g in groups {
