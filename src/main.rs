@@ -214,6 +214,10 @@ fn main() {
                              .long("create-prefixes")
                              .help(&format!("Create file containing prefixes based on hits from address-file, and exit"))
                         )
+                        .arg(Arg::with_name("create-addresses")
+                             .long("create-addresses")
+                             .help(&format!("Create file containing addresses based on hits from address-file, and exit"))
+                        )
                         .get_matches();
 
     eprintln!("-- reading input files");
@@ -311,6 +315,20 @@ fn main() {
         eprintln!("{}", s);
     }
 
+    if matches.is_present("create-addresses") {
+        let address_output_fn = format!("output/{}.addresses",
+                    Path::new(matches.value_of("address-file").unwrap()).file_name().unwrap().to_str().unwrap(),
+        );
+        eprintln!("creating address file {}", address_output_fn);
+        let mut file = File::create(address_output_fn).unwrap();
+        for (_,_,s) in table.iter() {
+            for dp in s.datapoints.iter() {
+                let _ = writeln!(file, "{}", dp.ip6);
+            }
+        }
+        exit(0);
+    }
+
 
     // read extra ASN colour info, if any
     let asn_colours: &mut HashMap<u32, String> = &mut HashMap::new();
@@ -360,6 +378,7 @@ fn main() {
         eprintln!("overruling max_hits, was {}, now is {}", max_hits, matches.value_of("scale-max").unwrap());
         max_hits = matches.value_of("scale-max").unwrap().parse::<usize>().unwrap();
     }
+
 
     let mut specifics: Vec<Specific>  = specs_to_hier(&table.into_iter().map(|(_,_,s)| s).collect());
     // without hierarchy: //TODO make this a switch
