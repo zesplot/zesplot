@@ -10,9 +10,12 @@ pub const HEIGHT: f64 = 100.0;
 pub const PLOT_LIMIT: u64 = 2000;
 pub const COLOUR_INPUT: &str = "hits";
 
-const LEGEND_GRADIENT_WIDTH: f64 = 3.0;  // width of the gradient itself
-const LEGEND_GRADIENT_MARGIN: f64 = 2.0; // margin between gradient and the plot and the ticks
+const LEGEND_GRADIENT_WIDTH: f64 = 3.0;     // width of the gradient itself
+const LEGEND_GRADIENT_MARGIN: f64 = 2.0;    // margin between gradient and the plot and the ticks
+const LABEL_DP_DESC_HEIGHT: f64 = 3.0;      // height of the datapoint description label (e.g. var(TTL))
+const TICK_HEIGHT_DELTA: f64 = (HEIGHT - LABEL_DP_DESC_HEIGHT) / 4.0; // 4.0 because we have 5 ticks, so 4 spaces in between
 pub const LEGEND_MARGIN: f64 = LEGEND_GRADIENT_WIDTH + 2.0*LEGEND_GRADIENT_MARGIN + 5.0; // FIXME 5.0 for Tekst width?
+
 
 
 pub fn legend(plot_info: &PlotInfo) -> (Definitions, Group) {
@@ -52,9 +55,9 @@ pub fn legend(plot_info: &PlotInfo) -> (Definitions, Group) {
 
     let legend = Rectangle::new()
                     .set("x", WIDTH + LEGEND_GRADIENT_MARGIN)
-                    .set("y", 0)
+                    .set("y", LABEL_DP_DESC_HEIGHT)
                     .set("width", LEGEND_GRADIENT_WIDTH)
-                    .set("height", HEIGHT)
+                    .set("height", HEIGHT - LABEL_DP_DESC_HEIGHT)
                     .set("stroke-width", 0.1)
                     .set("stroke", "#aaaaaa")
                     .set("opacity", 1.0)
@@ -83,7 +86,7 @@ pub fn legend(plot_info: &PlotInfo) -> (Definitions, Group) {
 
     let mut legend_label_100 = Text::new()
         .set("x", WIDTH + LEGEND_GRADIENT_WIDTH + LEGEND_GRADIENT_MARGIN*2.0)
-        .set("y", "2")
+        .set("y", 3.0 + LABEL_DP_DESC_HEIGHT + TICK_HEIGHT_DELTA*0.0)
         .set("font-family", "mono")
         .set("font-size", format!("{}%", 20))
         .set("text-anchor", "left");
@@ -92,7 +95,7 @@ pub fn legend(plot_info: &PlotInfo) -> (Definitions, Group) {
         ;
     let mut legend_label_75 = Text::new()
         .set("x", WIDTH + LEGEND_GRADIENT_WIDTH + LEGEND_GRADIENT_MARGIN*2.0)
-        .set("y", HEIGHT / 2.0 / 2.0)
+        .set("y", LABEL_DP_DESC_HEIGHT + TICK_HEIGHT_DELTA*1.0)
         .set("font-family", "mono")
         .set("font-size", format!("{}%", 20))
         .set("text-anchor", "left");
@@ -100,7 +103,7 @@ pub fn legend(plot_info: &PlotInfo) -> (Definitions, Group) {
         ;
     let mut legend_label_50 = Text::new()
         .set("x", WIDTH + LEGEND_GRADIENT_WIDTH + LEGEND_GRADIENT_MARGIN*2.0)
-        .set("y", HEIGHT / 2.0)
+        .set("y", LABEL_DP_DESC_HEIGHT + TICK_HEIGHT_DELTA*2.0)
         .set("font-family", "mono")
         .set("font-size", format!("{}%", 20))
         .set("text-anchor", "left");
@@ -108,7 +111,7 @@ pub fn legend(plot_info: &PlotInfo) -> (Definitions, Group) {
         ;
     let mut legend_label_25 = Text::new()
         .set("x", WIDTH + LEGEND_GRADIENT_WIDTH + LEGEND_GRADIENT_MARGIN*2.0)
-        .set("y", HEIGHT - (HEIGHT / 2.0 / 2.0))
+        .set("y", LABEL_DP_DESC_HEIGHT + TICK_HEIGHT_DELTA*3.0)
         .set("font-family", "mono")
         .set("font-size", format!("{}%", 20))
         .set("text-anchor", "left");
@@ -116,7 +119,7 @@ pub fn legend(plot_info: &PlotInfo) -> (Definitions, Group) {
         ;
     let mut legend_label_0 = Text::new()
         .set("x", WIDTH + LEGEND_GRADIENT_WIDTH + LEGEND_GRADIENT_MARGIN*2.0)
-        .set("y", HEIGHT)
+        .set("y", LABEL_DP_DESC_HEIGHT + TICK_HEIGHT_DELTA*4.0)
         .set("font-family", "mono")
         .set("font-size", format!("{}%", 20))
         .set("text-anchor", "left");
@@ -130,6 +133,25 @@ pub fn legend(plot_info: &PlotInfo) -> (Definitions, Group) {
     legend_g.append(legend_label_50);
     legend_g.append(legend_label_25);
     legend_g.append(legend_label_0);
+
+    let dp_desc_text = match plot_info.colour_mode {
+            ColourMode::DpAvg   => format!("mean({})",  plot_info.dp_desc),
+            ColourMode::DpVar   => format!("var({})",   plot_info.dp_desc),
+            ColourMode::DpUniq  => format!("uniq({})",  plot_info.dp_desc),
+            ColourMode::DpSum   => format!("sum({})",   plot_info.dp_desc),
+            _   =>  "todo".to_string(), //colour_mode
+        };
+
+    let mut legend_dp_desc = Text::new()
+        .set("x", WIDTH + LEGEND_GRADIENT_MARGIN*1.0)
+        .set("y", "2")
+        .set("font-family", "mono")
+        .set("font-size", format!("{}%", 12))
+        .set("text-anchor", "top");
+        legend_dp_desc.append(Tekst::new(dp_desc_text))
+        ;
+    
+    legend_g.append(legend_dp_desc);
 
     (defs, legend_g)
 }

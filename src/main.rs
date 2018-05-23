@@ -611,12 +611,13 @@ fn main() {
     } else {
         "unfiltered".to_string()
     };
-    let output_fn = format!("output/{}.{}.{}.{}.svg", Path::new(matches.value_of("address-file").unwrap()).file_name().unwrap().to_str().unwrap(),
+    let output_fn = &format!("{}.{}.{}.{}", Path::new(matches.value_of("address-file").unwrap()).file_name().unwrap().to_str().unwrap(),
         matches.value_of("colour-input").unwrap_or(plot::COLOUR_INPUT),
         output_fn_sized,
         output_fn_filtered
         );
-    eprintln!("creating {}", output_fn);
+    let output_fn_svg = format!("output/{}.svg", output_fn);
+    eprintln!("creating {}", output_fn_svg);
     svg::save(output_fn, &document).unwrap();
 
     if matches.is_present("create-html") {
@@ -634,6 +635,10 @@ fn main() {
 
         let html = template.replace("__SVG__", &raw_svg);
 
+        let output_fn_html = format!("html/{}.html", output_fn);
+        eprintln!("creating {}", output_fn_html);
+        let mut html_file = File::create(output_fn_html).unwrap();
+        html_file.write_all(&html.as_bytes()).unwrap();
         let mut html_file = File::create("html/index.html").unwrap();
         html_file.write_all(&html.as_bytes()).unwrap();
     }
