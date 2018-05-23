@@ -151,6 +151,14 @@ fn main() {
                              .long("filter")
                              .help("Filter out empty prefixes, only plotting prefixes containing addresses from the --addressess")
                         )
+                        // we might want to merge --filter-threshold  with --filter
+                        // can takes_value be optional?
+                        .arg(Arg::with_name("filter-threshold") 
+                             .long("filter-threshold")
+                             .aliases(&["ft"])
+                             .takes_value(true)
+                             .help("Set minimum threshold for --filter. Default 1.")
+                        )
                         .arg(Arg::with_name("unsized-rectangles")
                              .short("u")
                              .long("unsized")
@@ -389,7 +397,10 @@ fn main() {
         // if a prefix has multiple more-specifics, and only one has hits, all specifics are plotted
         // filtering out empty more-specifics might be useful
         let pre_filter_len_specs = specifics.len();
-        specifics.retain(|s| s.all_hits() > 0);
+        //specifics.retain(|s| s.all_hits() >= 1);
+        let filter_threshold = value_t!(matches.value_of("filter-threshold"), usize).unwrap_or_else(|e| 1);
+        eprintln!("filter_threshold: {}", filter_threshold);
+        specifics.retain(|s| s.all_hits() >= filter_threshold);
         total_area = specifics.iter().fold(0, |sum, s|{sum + s.size(unsized_rectangles)});
         eprintln!("filtered {} empty specifics, left: {}", pre_filter_len_specs - specifics.len(), specifics.len());
 
@@ -625,9 +636,9 @@ fn main() {
         "sized"
     };
     let output_fn_filtered = if matches.is_present("filter-empty-prefixes") {
-        "filtered"
+        format!("filtered.ft{}", matches.value_of("filter-threshold").unwrap_or("1"))
     } else {
-        "unfiltered"
+        "unfiltered".to_string()
     };
     let output_fn = format!("output/{}.{}.{}.{}.svg", Path::new(matches.value_of("address-file").unwrap()).file_name().unwrap().to_str().unwrap(),
         matches.value_of("colour-input").unwrap_or(COLOUR_INPUT),
