@@ -1,6 +1,8 @@
 mod treemap;
 use treemap::{Area,Row,DataPoint,PlotInfo,specs_to_hier,Specific,ColourMode};
 
+mod plot;
+
 use std::collections::HashSet;
 use std::collections::HashMap;
 
@@ -34,7 +36,7 @@ use clap::{Arg, App};
 
 use svg::*;
 use svg::node::Text as Tekst;
-use svg::node::element::{Rectangle, Circle, Text, Group, Definitions, LinearGradient, Stop};
+use svg::node::element::{Rectangle, Circle, Text, Group};
 
 use ipnetwork::Ipv6Network;
 use std::net::Ipv6Addr;
@@ -46,10 +48,10 @@ use std::path::Path;
 
 use rand::{thread_rng, sample};
 
-const WIDTH: f64 = 160.0;
-const HEIGHT: f64 = 100.0;
-const PLOT_LIMIT: u64 = 2000;
-const COLOUR_INPUT: &str = "hits";
+//const WIDTH: f64 = 160.0;
+//const HEIGHT: f64 = 100.0;
+//const PLOT_LIMIT: u64 = 2000;
+//const COLOUR_INPUT: &str = "hits";
 
 
 
@@ -203,7 +205,7 @@ fn main() {
                         .arg(Arg::with_name("plot-limit")
                              .short("l")
                              .long("limit")
-                             .help(&format!("Limits number of areas plotted. 0 for unlimited. Default {}", PLOT_LIMIT))
+                             .help(&format!("Limits number of areas plotted. 0 for unlimited. Default {}", plot::PLOT_LIMIT))
                              .takes_value(true)
                         )
                         .arg(Arg::with_name("no-labels")
@@ -398,7 +400,7 @@ fn main() {
         // filtering out empty more-specifics might be useful
         let pre_filter_len_specs = specifics.len();
         //specifics.retain(|s| s.all_hits() >= 1);
-        let filter_threshold = value_t!(matches.value_of("filter-threshold"), usize).unwrap_or_else(|e| 1);
+        let filter_threshold = value_t!(matches.value_of("filter-threshold"), usize).unwrap_or_else(|_| 1);
         eprintln!("filter_threshold: {}", filter_threshold);
         specifics.retain(|s| s.all_hits() >= filter_threshold);
         total_area = specifics.iter().fold(0, |sum, s|{sum + s.size(unsized_rectangles)});
@@ -446,7 +448,7 @@ fn main() {
     // initial aspect ratio FIXME this doesn't affect anything, remove
     let init_ar: f64 = 1_f64 / (8.0/1.0);
 
-    let norm_factor = (WIDTH * HEIGHT) / total_area as f64;
+    let norm_factor = (plot::WIDTH * plot::HEIGHT) / total_area as f64;
 
     let mut areas: Vec<Area> = Vec::new();
 
@@ -469,7 +471,7 @@ fn main() {
     //};
     let mut colour_mode = ColourMode::Hits;
     
-    let dp_desc: String = match matches.value_of("colour-input").unwrap_or(COLOUR_INPUT) {
+    let dp_desc: String = match matches.value_of("colour-input").unwrap_or(plot::COLOUR_INPUT) {
         "ttl"   => "TTL".to_string(),
         "mss"   => "TCP MSS".to_string(),
         "dns"   => "DNS RA bit".to_string(),
@@ -531,7 +533,7 @@ fn main() {
     let mut areas_plotted: u64 = 0;
 
     //let plot_limit = matches.value_of("plot-limit").unwrap_or(PLOT_LIMIT);
-    let plot_limit = value_t!(matches, "plot-limit", u64).unwrap_or(PLOT_LIMIT);
+    let plot_limit = value_t!(matches, "plot-limit", u64).unwrap_or(plot::PLOT_LIMIT);
     //eprintln!("plot_limit: {}", plot_limit);
     for row in rows {
         //println!("new row: {}", direction);
@@ -618,20 +620,9 @@ fn main() {
         }
     }
 
-    // add colour legend
-    // def 
-    //  - lin-grad
-    //     - stop1
-    //     - stop2
-    //     - stop3
-
-//          <stop class="stop1" offset="0%"/>
-//          <stop class="stop2" offset="50%"/>
-//          <stop class="stop3" offset="100%"/>
-//<stop offset="100%" stop-color="yellow" stop-opacity="0.5"/>
-
-// vertical:
-// <linearGradient id="Gradient2" x1="0" x2="0" y1="0" y2="1">
+/*
+    // vertical:
+    // <linearGradient id="Gradient2" x1="0" x2="0" y1="0" y2="1">
 
     let mut defs = Definitions::new();
     let mut gradient = LinearGradient::new()
@@ -693,9 +684,9 @@ fn main() {
 
     let norm = 1024.0 / (legend_100 as f64).log2();
     // round of max
-    let legend_75 = 2_f64.powf(786_f64 / norm); // FIXME this should be logarithmic as well!
-    let legend_50 = 2_f64.powf(512_f64 / norm); // FIXME this should be logarithmic as well!
-    let legend_25 = 2_f64.powf(256_f64 / norm); // FIXME this should be logarithmic as well!
+    let legend_75 = 2_f64.powf(786_f64 / norm);
+    let legend_50 = 2_f64.powf(512_f64 / norm);
+    let legend_25 = 2_f64.powf(256_f64 / norm);
     let legend_0 = 1;
     //let legend_max_rounded = legend_max / 
 
@@ -750,12 +741,13 @@ fn main() {
     legend_g.append(legend_label_0);
 
 
-
+*/
+    let (defs, legend_g) = plot::legend(&plot_info);
 
     eprintln!("plotting {} rectangles, limit was {}", areas_plotted, plot_limit);
 
     let mut document = Document::new()
-                        .set("viewBox", (0, 0, WIDTH + LEGEND_MARGIN as f64, HEIGHT))
+                        .set("viewBox", (0, 0, plot::WIDTH + plot::LEGEND_MARGIN as f64, plot::HEIGHT))
                         .set("id", "treeplot")
                         ;
     for g in groups {
@@ -778,7 +770,7 @@ fn main() {
         "unfiltered".to_string()
     };
     let output_fn = format!("output/{}.{}.{}.{}.svg", Path::new(matches.value_of("address-file").unwrap()).file_name().unwrap().to_str().unwrap(),
-        matches.value_of("colour-input").unwrap_or(COLOUR_INPUT),
+        matches.value_of("colour-input").unwrap_or(plot::COLOUR_INPUT),
         output_fn_sized,
         output_fn_filtered
         );

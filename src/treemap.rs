@@ -1,3 +1,5 @@
+use plot;
+
 use ipnetwork::Ipv6Network;
 use std::net::Ipv6Addr;
 
@@ -325,8 +327,8 @@ impl Area {
 
 impl Row {
     pub fn new(x: f64, y: f64, vertical: bool, mut area: Area) -> Row {
-        let max_h = super::HEIGHT - y;
-        let max_w = super::WIDTH - x;
+        let max_h = plot::HEIGHT - y;
+        let max_w = plot::WIDTH - x;
         if vertical {
             area.h = max_h;
             area.w = area.surface / area.h;
