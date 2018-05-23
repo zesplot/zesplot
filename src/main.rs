@@ -34,7 +34,7 @@ use clap::{Arg, App};
 
 use svg::*;
 use svg::node::Text as Tekst;
-use svg::node::element::{Rectangle, Circle, Text, Group};
+use svg::node::element::{Rectangle, Circle, Text, Group, Definitions, LinearGradient, Stop};
 
 use ipnetwork::Ipv6Network;
 use std::net::Ipv6Addr;
@@ -618,15 +618,152 @@ fn main() {
         }
     }
 
+    // add colour legend
+    // def 
+    //  - lin-grad
+    //     - stop1
+    //     - stop2
+    //     - stop3
+
+//          <stop class="stop1" offset="0%"/>
+//          <stop class="stop2" offset="50%"/>
+//          <stop class="stop3" offset="100%"/>
+//<stop offset="100%" stop-color="yellow" stop-opacity="0.5"/>
+
+// vertical:
+// <linearGradient id="Gradient2" x1="0" x2="0" y1="0" y2="1">
+
+    let mut defs = Definitions::new();
+    let mut gradient = LinearGradient::new()
+                            .set("id", "grad0")
+                            .set("x1", "0")
+                            .set("x2", "0")
+                            .set("y1", "0")
+                            .set("y2", "1");
+
+    // 100% == top of gradient
+    gradient.append(Stop::new()
+                        .set("offset", "0%")
+                        .set("stop-color", "#ff0000")
+                        );
+    gradient.append(Stop::new()
+                        .set("offset", "25%")
+                        .set("stop-color", "#ffff00")
+                        );
+    gradient.append(Stop::new()
+                        .set("offset", "50%")
+                        .set("stop-color", "#00ff00")
+                        );
+    gradient.append(Stop::new()
+                        .set("offset", "75%")
+                        .set("stop-color", "#00ffff")
+                        );
+    gradient.append(Stop::new()
+                        .set("offset", "100%")
+                        .set("stop-color", "#0000ff")
+                        );
+    defs.append(gradient);
+
+    let LEGEND_GRADIENT_WIDTH: f64 = 3.0;  // width of the gradient itself
+    let LEGEND_GRADIENT_MARGIN: f64 = 2.0; // margin between gradient and the plot and the ticks
+
+    let LEGEND_MARGIN: f64 = LEGEND_GRADIENT_WIDTH + 2.0*LEGEND_GRADIENT_MARGIN + 5.0; // FIXME 5.0 for Tekst width?
+    let legend = Rectangle::new()
+                    .set("x", WIDTH + LEGEND_GRADIENT_MARGIN)
+                    .set("y", 0)
+                    .set("width", LEGEND_GRADIENT_WIDTH)
+                    .set("height", HEIGHT)
+                    .set("stroke-width", 1)
+                    .set("stroke", "#aaaaaa")
+                    .set("opacity", 1.0)
+                    .set("fill", "url(#grad0)")
+                    ;
+
+    // ticks
+
+    // match on colour_mode, find out which max to use and create a title a la var(ttl)
+    let legend_100 = match plot_info.colour_mode {
+        ColourMode::Hits => plot_info.max_hits as f64,
+        ColourMode::DpAvg => plot_info.max_dp_avg as f64,
+        ColourMode::DpVar => plot_info.max_dp_var as f64,
+        ColourMode::DpUniq =>plot_info.max_dp_uniq as f64,
+        ColourMode::DpSum => plot_info.max_dp_sum as f64,
+        ColourMode::Asn => 5.0, //FIXME how do we do a scale based on plot_info.asn_colours ?
+    };
+
+    let norm = 1024.0 / (legend_100 as f64).log2();
+    // round of max
+    let legend_75 = 2_f64.powf(786_f64 / norm); // FIXME this should be logarithmic as well!
+    let legend_50 = 2_f64.powf(512_f64 / norm); // FIXME this should be logarithmic as well!
+    let legend_25 = 2_f64.powf(256_f64 / norm); // FIXME this should be logarithmic as well!
+    let legend_0 = 1;
+    //let legend_max_rounded = legend_max / 
+
+
+    let mut legend_label_100 = Text::new()
+        .set("x", WIDTH + LEGEND_GRADIENT_WIDTH + LEGEND_GRADIENT_MARGIN*2.0)
+        .set("y", "2")
+        .set("font-family", "mono")
+        .set("font-size", format!("{}%", 20))
+        .set("text-anchor", "left");
+        legend_label_100.append(Tekst::new(format!("{:.0}", legend_100)))
+        ;
+    let mut legend_label_75 = Text::new()
+        .set("x", WIDTH + LEGEND_GRADIENT_WIDTH + LEGEND_GRADIENT_MARGIN*2.0)
+        .set("y", HEIGHT / 2.0 / 2.0)
+        .set("font-family", "mono")
+        .set("font-size", format!("{}%", 20))
+        .set("text-anchor", "left");
+        legend_label_75.append(Tekst::new(format!("{:.0}", legend_75)))
+        ;
+    let mut legend_label_50 = Text::new()
+        .set("x", WIDTH + LEGEND_GRADIENT_WIDTH + LEGEND_GRADIENT_MARGIN*2.0)
+        .set("y", HEIGHT / 2.0)
+        .set("font-family", "mono")
+        .set("font-size", format!("{}%", 20))
+        .set("text-anchor", "left");
+        legend_label_50.append(Tekst::new(format!("{:.0}", legend_50)))
+        ;
+    let mut legend_label_25 = Text::new()
+        .set("x", WIDTH + LEGEND_GRADIENT_WIDTH + LEGEND_GRADIENT_MARGIN*2.0)
+        .set("y", HEIGHT - (HEIGHT / 2.0 / 2.0))
+        .set("font-family", "mono")
+        .set("font-size", format!("{}%", 20))
+        .set("text-anchor", "left");
+        legend_label_25.append(Tekst::new(format!("{:.0}", legend_25)))
+        ;
+    let mut legend_label_0 = Text::new()
+        .set("x", WIDTH + LEGEND_GRADIENT_WIDTH + LEGEND_GRADIENT_MARGIN*2.0)
+        .set("y", HEIGHT)
+        .set("font-family", "mono")
+        .set("font-size", format!("{}%", 20))
+        .set("text-anchor", "left");
+        legend_label_0.append(Tekst::new(format!("{:.0}", legend_0)))
+        ;
+
+    let mut legend_g = Group::new();
+    legend_g.append(legend);
+    legend_g.append(legend_label_100);
+    legend_g.append(legend_label_75);
+    legend_g.append(legend_label_50);
+    legend_g.append(legend_label_25);
+    legend_g.append(legend_label_0);
+
+
+
+
     eprintln!("plotting {} rectangles, limit was {}", areas_plotted, plot_limit);
 
     let mut document = Document::new()
-                        .set("viewBox", (0, 0, WIDTH, HEIGHT))
+                        .set("viewBox", (0, 0, WIDTH + LEGEND_MARGIN as f64, HEIGHT))
                         .set("id", "treeplot")
                         ;
     for g in groups {
         document.append(g);
     }
+    document.append(defs);
+    document.append(legend_g);
+
 
     //eprintln!("-- creating output files");
 
