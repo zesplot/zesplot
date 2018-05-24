@@ -622,7 +622,11 @@ fn main() {
         }
     }
 
-    let (defs, legend_g) = plot::legend(&plot_info);
+    let (defs, legend_g) = if matches.is_present("asn-colours") {
+        plot::legend_discrete(&plot_info)
+    } else {
+        plot::legend(&plot_info)
+    };
 
     eprintln!("plotting {} rectangles, limit was {}", areas_plotted, plot_limit);
 

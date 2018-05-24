@@ -498,6 +498,7 @@ fn colour(i: u32, max: u32) -> String {
 // used for asn -> id mapping
 fn colour_from_map(asn: u32, mapping: &HashMap<u32, String>) -> String {
 
+    /*
     if !mapping.contains_key(&asn) {
         return "#eeeeee".to_string();
     }
@@ -506,9 +507,20 @@ fn colour_from_map(asn: u32, mapping: &HashMap<u32, String>) -> String {
     let mut uniq_sorted_values: Vec<String> = uniq_values.into_iter().collect();
     uniq_sorted_values.sort();
     let num_distinct_colours = uniq_sorted_values.len();
-
     let index = uniq_sorted_values.iter().position(|e| e == mapping.get(&asn).unwrap()).unwrap();
-    colour(index as u32, num_distinct_colours as u32)
+    */
+
+
+    let scale: HashMap<String, String> = [  ("cluster0".to_string(), "#ff0000".to_string()),
+                                            ("cluster1".to_string(), "#ffff00".to_string()),
+                                            ("cluster2".to_string(), "#00ff00".to_string()),
+                                            ("cluster3".to_string(), "#ff00ff".to_string()),
+                                            ("cluster4".to_string(), "#00ffff".to_string()),
+                                            ("cluster5".to_string(), "#0000ff".to_string()),
+                                            ].iter().cloned().collect();
+
+    scale.get(mapping.get(&asn).unwrap()).unwrap().to_string()
+    //colour(index as u32, num_distinct_colours as u32)
 }
 
 

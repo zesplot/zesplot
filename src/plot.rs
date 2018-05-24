@@ -18,6 +18,7 @@ const LEGEND_GRADIENT_HEIGHT: f64 = HEIGHT; // - LABEL_DP_DESC_HEIGHT;     // wi
 const TICK_FIRST_Y: f64 = 0.0; //LABEL_DP_DESC_HEIGHT * 1.5; 
 const TICK_HEIGHT_DELTA: f64 = LEGEND_GRADIENT_HEIGHT / 4.0; // 4.0 because we have 5 ticks, so 4 spaces in between
 const TICK_X: f64 = WIDTH + LEGEND_GRADIENT_WIDTH + 2.0*LEGEND_GRADIENT_MARGIN ; // FIXME 5.0 for Tekst width?
+const TICK_FONT_SIZE: &str = "40%";
 pub const LEGEND_MARGIN_W: f64 = LEGEND_GRADIENT_WIDTH + 2.0*LEGEND_GRADIENT_MARGIN + 20.0; // FIXME 5.0 for Tekst width?
 //pub const LEGEND_MARGIN_Y: f64 = LEGEND_GRADIENT_WIDTH + 2.0*LEGEND_GRADIENT_MARGIN + 25.0; // FIXME 5.0 for Tekst width?
 
@@ -105,14 +106,11 @@ pub fn legend(plot_info: &PlotInfo) -> (Definitions, Group) {
         legend_0 = 1.0;
     }
 
-    //let tick_font_size = HEIGHT / 20.0; //format!("{}", );
-    let tick_font_size = "40%";
-
     let mut legend_label_100 = Text::new()
         .set("x", WIDTH + LEGEND_GRADIENT_WIDTH + LEGEND_GRADIENT_MARGIN*2.0)
         .set("y", 5.0 + TICK_FIRST_Y + TICK_HEIGHT_DELTA*0.0)
         .set("font-family", "serif")
-        .set("font-size", tick_font_size.clone())
+        .set("font-size", TICK_FONT_SIZE)
         .set("text-anchor", "left");
         //legend_label_100.append(Tekst::new(format!("{:.0}", legend_100)))
         legend_label_100.append(Tekst::new(tick_label(legend_100)))
@@ -121,7 +119,7 @@ pub fn legend(plot_info: &PlotInfo) -> (Definitions, Group) {
         .set("x", WIDTH + LEGEND_GRADIENT_WIDTH + LEGEND_GRADIENT_MARGIN*2.0)
         .set("y", TICK_FIRST_Y + TICK_HEIGHT_DELTA*1.0)
         .set("font-family", "serif")
-        .set("font-size", tick_font_size.clone())
+        .set("font-size", TICK_FONT_SIZE)
         .set("text-anchor", "left");
         legend_label_75.append(Tekst::new(tick_label(legend_75)))
         ;
@@ -129,7 +127,7 @@ pub fn legend(plot_info: &PlotInfo) -> (Definitions, Group) {
         .set("x", WIDTH + LEGEND_GRADIENT_WIDTH + LEGEND_GRADIENT_MARGIN*2.0)
         .set("y", TICK_FIRST_Y + TICK_HEIGHT_DELTA*2.0)
         .set("font-family", "serif")
-        .set("font-size", tick_font_size.clone())
+        .set("font-size", TICK_FONT_SIZE)
         .set("text-anchor", "left");
         legend_label_50.append(Tekst::new(tick_label(legend_50)))
         ;
@@ -137,7 +135,7 @@ pub fn legend(plot_info: &PlotInfo) -> (Definitions, Group) {
         .set("x", WIDTH + LEGEND_GRADIENT_WIDTH + LEGEND_GRADIENT_MARGIN*2.0)
         .set("y", TICK_FIRST_Y + TICK_HEIGHT_DELTA*3.0)
         .set("font-family", "serif")
-        .set("font-size", tick_font_size.clone())
+        .set("font-size", TICK_FONT_SIZE)
         .set("text-anchor", "left");
         legend_label_25.append(Tekst::new(tick_label(legend_25)))
         ;
@@ -145,7 +143,7 @@ pub fn legend(plot_info: &PlotInfo) -> (Definitions, Group) {
         .set("x", WIDTH + LEGEND_GRADIENT_WIDTH + LEGEND_GRADIENT_MARGIN*2.0)
         .set("y", TICK_FIRST_Y + TICK_HEIGHT_DELTA*4.0)
         .set("font-family", "serif")
-        .set("font-size", tick_font_size.clone())
+        .set("font-size", TICK_FONT_SIZE)
         .set("text-anchor", "left");
         legend_label_0.append(Tekst::new(tick_label(legend_0)))
         ;
@@ -175,7 +173,7 @@ pub fn legend(plot_info: &PlotInfo) -> (Definitions, Group) {
         //.set("x", WIDTH + LEGEND_GRADIENT_MARGIN*1.0)
         //.set("y", LABEL_DP_DESC_HEIGHT - 2.0)
         .set("font-family", "serif")
-        .set("font-size", tick_font_size.clone())
+        .set("font-size", TICK_FONT_SIZE)
         // vertical:
         .set("writing-mode", "tb-rl")
         .set("x", TICK_X + ticks_max_width)
@@ -190,6 +188,63 @@ pub fn legend(plot_info: &PlotInfo) -> (Definitions, Group) {
     legend_g.append(legend_dp_desc);
 
     (defs, legend_g)
+}
+
+pub fn legend_discrete(plot_info: &PlotInfo) -> (Definitions, Group) {
+
+    // NB hardcoded for now, should match the HashMap in treemap.rs
+    let scale = vec!["#ff0000",
+                     "#ffff00",
+                     "#00ff00",
+                     "#ff00ff",
+                     "#00ffff",
+                     "#0000ff",
+                    ];
+
+
+
+    let defs = Definitions::new();
+    let mut group = Group::new();
+    //for (i, (id, colour)) in scale.iter().enumerate() {
+    let legend_box_width = 5.0;
+    for (i, colour) in scale.iter().enumerate() {
+        let r = Rectangle::new()
+                    .set("x", WIDTH + LEGEND_GRADIENT_MARGIN)
+                    .set("y", i as f64 * (HEIGHT / scale.len() as f64))
+                    .set("width", legend_box_width)
+                    .set("height", legend_box_width)
+                    .set("fill", colour.to_string())
+                    .set("opacity", 1.0)
+                ;
+        let mut tick_label = Text::new()
+                    .set("x", WIDTH + LEGEND_GRADIENT_WIDTH + LEGEND_GRADIENT_MARGIN*2.0 + 1.0)
+                    .set("y", 5.0 + i as f64 * (HEIGHT / scale.len() as f64))
+                    .set("font-family", "serif")
+                    .set("font-size", TICK_FONT_SIZE)
+                ;
+        tick_label.append(Tekst::new(format!("{}", i + 1))); // as i is the id
+        group.append(r);
+        group.append(tick_label);
+    }
+
+
+    let mut legend_dp_desc = Text::new()
+        //.set("x", WIDTH + LEGEND_GRADIENT_MARGIN*1.0)
+        //.set("y", LABEL_DP_DESC_HEIGHT - 2.0)
+        .set("font-family", "serif")
+        .set("font-size", TICK_FONT_SIZE)
+        // vertical:
+        .set("writing-mode", "tb-rl")
+        .set("x", WIDTH + LEGEND_GRADIENT_MARGIN*2.0 + legend_box_width + 6.0)
+        .set("y", HEIGHT / 2.0)
+        .set("text-anchor", "middle")
+        ;
+
+        //.set("alignment-baseline", "hanging"); // this does not work in firefox
+        legend_dp_desc.append(Tekst::new("Cluster ID"));
+
+    group.append(legend_dp_desc);
+    (defs, group)
 }
 
 pub fn tick_label(v: f64) -> String {
