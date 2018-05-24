@@ -185,6 +185,11 @@ fn main() {
                             )
                              .takes_value(true)
                         )
+                        .arg(Arg::with_name("legend-label")
+                            .long("legend-label")
+                            .help("Set a custom label for the legend")
+                            .takes_value(true)
+                        )
                         .arg(Arg::with_name("asn-colours")
                             .long("asn-colours")
                             .help("Additional colours for ASNs. File should contain lines with 'ASN ID'.
@@ -464,11 +469,15 @@ fn main() {
 
     let mut colour_mode = ColourMode::Hits;
     
-    let dp_desc: String = match matches.value_of("colour-input").unwrap_or(plot::COLOUR_INPUT) {
-        "ttl"   => "TTL".to_string(),
-        "mss"   => "TCP MSS".to_string(),
-        "dns"   => "DNS RA bit".to_string(),
-        "hits"|_ => "Hits".to_string()
+    let dp_desc = if matches.is_present("legend-label") {
+        matches.value_of("legend-label").unwrap().to_string()
+    } else {
+        match matches.value_of("colour-input").unwrap_or(plot::COLOUR_INPUT) {
+            "ttl"   => "TTL".to_string(),
+            "mss"   => "TCP MSS".to_string(),
+            "dns"   => "DNS RA bit".to_string(),
+            "hits"|_ => "Hits".to_string()
+        }
     };
 
     if matches.is_present("dp-function") {
