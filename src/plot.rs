@@ -164,7 +164,7 @@ pub fn legend(plot_info: &PlotInfo) -> (Definitions, Group) {
             ColourMode::DpVar   => format!("var({})",   plot_info.dp_desc),
             ColourMode::DpUniq  => format!("uniq({})",  plot_info.dp_desc),
             ColourMode::DpSum   => format!("sum({})",   plot_info.dp_desc),
-            _   =>  "Responses".to_string(), //colour_mode
+            _   =>  plot_info.dp_desc.to_string(), //"Responses".to_string(), //colour_mode
         };
 
     // TODO: more precise way of determining actual maximum width
