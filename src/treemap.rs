@@ -511,15 +511,16 @@ fn colour_from_map(asn: u32, mapping: &HashMap<u32, String>) -> String {
     */
 
 
-    let scale: HashMap<String, String> = [  ("cluster0".to_string(), "#ff0000".to_string()),
-                                            ("cluster1".to_string(), "#ffff00".to_string()),
-                                            ("cluster2".to_string(), "#00ff00".to_string()),
-                                            ("cluster3".to_string(), "#ff00ff".to_string()),
-                                            ("cluster4".to_string(), "#00ffff".to_string()),
-                                            ("cluster5".to_string(), "#0000ff".to_string()),
+    let scale: HashMap<String, &str> = [  ("cluster0".to_string(),   "#ff0000"),
+                                            ("cluster1".to_string(), "#ffff00"),
+                                            ("cluster2".to_string(), "#00ff00"),
+                                            ("cluster3".to_string(), "#ff00ff"),
+                                            ("cluster4".to_string(), "#00ffff"),
+                                            ("cluster5".to_string(), "#0000ff"),
                                             ].iter().cloned().collect();
 
-    scale.get(mapping.get(&asn).unwrap()).unwrap().to_string()
+    // unwrap_or for non-existing asn-to-cluster mappings, eventually ending up in the gray #eee colour
+    scale.get(mapping.get(&asn).unwrap_or(&"_".to_string())).unwrap_or(&"#eeeeee").to_string()
     //colour(index as u32, num_distinct_colours as u32)
 }
 
