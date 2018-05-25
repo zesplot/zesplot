@@ -170,15 +170,17 @@ impl Specific {
 
     pub fn __size(&self) -> u128 {
         //(128 - self.network.prefix()).into()
-        let mut exp = self.network.prefix() as u32;
-        if exp < 24 {
-            exp = 24;
-        }
-        if exp > 48 {
-            exp = 48;
-        }
-        let r = 2_u128.pow(128 - exp);
-        r
+
+        //let mut exp = self.network.prefix() as u32;
+        //if exp < 24 {
+        //    exp = 24;
+        //}
+        //if exp > 48 {
+        //    exp = 48;
+        //}
+        //let r = 2_u128.pow(128 - exp);
+        //r
+        1.2_f64.powf(128.0 - self.network.prefix() as f64) as u128
     }
     
     pub fn prefix_len(&self) -> u8 {
