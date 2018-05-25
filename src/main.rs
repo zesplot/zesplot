@@ -398,9 +398,16 @@ fn main() {
     }
 
     let mut specifics: Vec<Specific>  = table.into_iter().map(|(_,_,s)| s).collect();
+    let mut specifics_with_hits = 0;
+    for s in &specifics {
+        if s.hits() > 0 {
+            specifics_with_hits += 1;
+        }
+    }
 
     eprintln!("# of ASNs: {}", unique_asns.len());
     eprintln!("# of specifics: {}", specifics.len());
+    eprintln!("# of specifics with hits: {}", specifics_with_hits);
     eprintln!("# of hits in all specifics: {}", specifics.iter().fold(0, |sum, s| sum + s.all_hits())  );
 
     if matches.is_present("filter-threshold-asn") {
