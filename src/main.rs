@@ -705,7 +705,7 @@ fn main() {
     
     let output_fn_svg = format!("output/{}.svg", output_fn);
     eprintln!("creating {}", output_fn_svg);
-    svg::save(&output_fn, &document).unwrap();
+    svg::save(&output_fn_svg, &document).unwrap();
 
     if matches.is_present("create-html") {
 
