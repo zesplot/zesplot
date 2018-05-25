@@ -221,6 +221,11 @@ fn main() {
                              .long("html")
                              .help(&format!("Create HTML wrapper output in ./html"))
                         )
+                        .arg(Arg::with_name("output-fn")
+                             .long("output-fn")
+                             .help(&format!("Override the generated output filenames. File extensions (.svg, .html) will be appended."))
+                             .takes_value(true)
+                        )
                         .arg(Arg::with_name("create-prefixes")
                              .long("create-prefixes")
                              .help(&format!("Create file containing prefixes based on hits from address-file, and exit"))
@@ -405,9 +410,9 @@ fn main() {
         }
     }
 
-    eprintln!("# of ASNs: {}", unique_asns.len());
     eprintln!("# of specifics: {}", specifics.len());
     eprintln!("# of specifics with hits: {}", specifics_with_hits);
+    eprintln!("# of ASNs with hits: {}", unique_asns.len());
     eprintln!("# of hits in all specifics: {}", specifics.iter().fold(0, |sum, s| sum + s.all_hits())  );
 
     if matches.is_present("filter-threshold-asn") {
@@ -686,14 +691,21 @@ fn main() {
     } else {
         "unfiltered".to_string()
     };
-    let output_fn = &format!("{}.{}.{}.{}", Path::new(matches.value_of("address-file").unwrap()).file_name().unwrap().to_str().unwrap(),
-        matches.value_of("colour-input").unwrap_or(plot::COLOUR_INPUT),
-        output_fn_sized,
-        output_fn_filtered
-        );
+    let output_fn = if matches.is_present("output-fn") {
+        matches.value_of("output-fn").unwrap().to_string()
+    } else {
+        format!("{}.{}.{}.{}", Path::new(matches.value_of("address-file").unwrap()).file_name().unwrap().to_str().unwrap(),
+            matches.value_of("colour-input").unwrap_or(plot::COLOUR_INPUT),
+            output_fn_sized,
+            output_fn_filtered
+            )
+    };
+
+
+    
     let output_fn_svg = format!("output/{}.svg", output_fn);
     eprintln!("creating {}", output_fn_svg);
-    svg::save(output_fn, &document).unwrap();
+    svg::save(&output_fn, &document).unwrap();
 
     if matches.is_present("create-html") {
 
