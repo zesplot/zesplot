@@ -154,6 +154,12 @@ fn main() {
                              .takes_value(true)
                              .help("Set minimum threshold for --filter. Default 1.")
                         )
+                        .arg(Arg::with_name("filter-threshold-asn") 
+                             .long("filter-threshold-asn")
+                             .aliases(&["fta"])
+                             .takes_value(true)
+                             .help("Set minimum threshold for --filter for hits per ASN instead of per prefix. Default 1.")
+                        )
                         .arg(Arg::with_name("unsized-rectangles")
                              .short("u")
                              .long("unsized")
@@ -306,14 +312,21 @@ fn main() {
 
     eprintln!("prefixes: {} , addresses: {}", table.iter().count(), datapoints.len());
     let mut prefix_mismatches = 0;
+    let mut asn_to_hits: HashMap<String, usize> = HashMap::new();
     for dp in datapoints.into_iter() {
-        if let Some((_, _, r)) = table.longest_match(dp.ip6) {
-            r.push_dp(dp);
+        if let Some((_, _, s)) = table.longest_match(dp.ip6) {
+            s.push_dp(dp);
+            let asn_hitcount = asn_to_hits.entry(s.asn.clone()).or_insert(0);
+            *asn_hitcount += 1;
         } else {
             //eprintln!("could not match {:?}", dp.ip6);
+            //let asn_hitcount = asn_to_hits.entry(s.asn.clone()).or_insert(0); //TODO ugly fix so we can use retain() on the specifics later on 
             prefix_mismatches += 1;
         }
     }
+
+    let unique_asns: HashSet<String> = asn_to_hits.keys().cloned().collect();
+    eprintln!("hits for 701: {}", asn_to_hits.get("701").unwrap_or(&0_usize));
     
     if prefix_mismatches > 0 {
         let s = format!("Could not match {} addresses", prefix_mismatches).to_string().on_red().bold();
@@ -384,8 +397,23 @@ fn main() {
         max_hits = matches.value_of("scale-max").unwrap().parse::<usize>().unwrap();
     }
 
+    let mut specifics: Vec<Specific>  = table.into_iter().map(|(_,_,s)| s).collect();
 
-    let mut specifics: Vec<Specific>  = specs_to_hier(&table.into_iter().map(|(_,_,s)| s).collect());
+    eprintln!("# of ASNs: {}", unique_asns.len());
+    eprintln!("# of specifics: {}", specifics.len());
+    eprintln!("# of hits in all specifics: {}", specifics.iter().fold(0, |sum, s| sum + s.all_hits())  );
+
+    if matches.is_present("filter-threshold-asn") {
+        let minimum = value_t!(matches.value_of("filter-threshold-asn"), usize).unwrap_or_else(|_| 0);
+        eprintln!("got --filter-threshold-asns, only plotting ASNs with minimum hits of {}", minimum);
+        let pre_filter_len_specs = specifics.len();
+        specifics.retain(|s| asn_to_hits.get(&s.asn).unwrap_or(&0) >= &minimum);
+        eprintln!("filtered {} specifics, left: {}", pre_filter_len_specs - specifics.len(), specifics.len());
+    }
+
+    specifics = specs_to_hier(&specifics);
+
+    //let mut specifics: Vec<Specific>  = specs_to_hier(&table.into_iter().map(|(_,_,s)| s).collect());
     // without hierarchy: //TODO make this a switch
     //let mut specifics: Vec<Specific>  = (table.into_iter().map(|(_,_,s)| s).collect());
 
@@ -393,9 +421,6 @@ fn main() {
     // because the hierchical model will have less 'first level' rectangles, thus a smaller total_area
     let mut total_area = specifics.iter().fold(0, |sum, s|{sum + s.size(unsized_rectangles)});
 
-
-    eprintln!("# of specifics: {}", specifics.len());
-    eprintln!("# of hits in all specifics: {}", specifics.iter().fold(0, |sum, s| sum + s.all_hits())  );
 
 
     if matches.is_present("filter-empty-prefixes") {
