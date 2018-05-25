@@ -205,7 +205,7 @@ impl Specific {
             .set("y", y)
             .set("width", w * w_factor)
             .set("height", h * h_factor)
-            .set("stroke-width", 0.5_f64.min(0.005_f64.max(w * h * 0.0005 * h_factor)))
+            .set("stroke-width", 0.5_f64.min(0.001_f64.max(w * h * 0.0005 * h_factor)))
             .set("stroke", "#aaaaaa")
             .set("opacity", 1.0)
             .set("data-asn", self.asn.to_string())
