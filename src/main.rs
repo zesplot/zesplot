@@ -412,6 +412,7 @@ fn main() {
     }
 
     specifics = specs_to_hier(&specifics);
+    eprintln!("# of top-level specifics: {}", specifics.len());
 
     //let mut specifics: Vec<Specific>  = specs_to_hier(&table.into_iter().map(|(_,_,s)| s).collect());
     // without hierarchy: //TODO make this a switch
