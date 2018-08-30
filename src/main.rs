@@ -1,6 +1,8 @@
 mod treemap;
 use treemap::{Area,Row,DataPoint,PlotInfo,specs_to_hier,Specific,ColourMode};
 
+mod input;
+use input::{prefixes_from_file, asn_colours_from_file};
 mod plot;
 
 use std::collections::HashSet;
@@ -21,10 +23,6 @@ use easy_csv::{CSVIterator};
 
 use std::time::{Instant};
 
-extern crate treebitmap;
-use treebitmap::{IpLookupTable};
-use std::io;
-
 use std::process::exit;
 
 extern crate svg;
@@ -38,61 +36,10 @@ use svg::*;
 use svg::node::Text as Tekst;
 use svg::node::element::{Rectangle, Text, Group};
 
-use ipnetwork::Ipv6Network;
-use std::net::Ipv6Addr;
-
 use std::io::{BufReader};
 use std::io::prelude::*;
 use std::fs::File;
 use std::path::Path;
-
-// the input for prefixes_from_file is generated a la:
-// ./bgpdump -M latest-bview.gz | ack "::/" cut -d'|' -f 6,7 --output-delimiter=" " | awk '{print $1,$NF}' |sort -u
-// now, this still includes 6to4 2002::/16 announcements
-// should we filter these out?
-// IDEA: limit those prefixes to say a /32 in size? and label them e.g. 6to4 instead of ASxxxx
-
-// bgpstream variant:
-// bgpreader -c route-views6 -w 1522920000,1522928386 -k 2000::/3 > /tmp/bgpreader.test.today 
-// cut -d'|' -f8,11 /tmp/bgpreader.test.today | sort -u > bgpreader.test.today.sorted
-
-// or, simply fetched from http://data.caida.org/datasets/routing/routeviews6-prefix2as/2018/01/
-// awk '{print $1"/"$2, $3}'
-
-fn prefixes_from_file<'a>(f: &'a str) -> io::Result<IpLookupTable<Ipv6Addr,Specific>> {
-    let mut file = File::open(f)?;
-    let mut s = String::new();
-    file.read_to_string(&mut s)?;
-    let mut table: IpLookupTable<Ipv6Addr,Specific> = IpLookupTable::new();
-    for line in s.lines() {
-        let parts = line.split_whitespace().collect::<Vec<&str>>();
-        if let Ok(route) = parts[0].parse::<Ipv6Network>(){
-
-            // asn is not a u32, as some routes have an asn_asn_asn,asn notation in pfx2as
-            let asn = parts[1];
-                table.insert(route.ip(), route.prefix().into(),
-                        Specific { network: route, asn: asn.to_string(), datapoints: Vec::new(), specifics: Vec::new()});
-        } else {
-                eprintln!("choked on {} while reading prefixes file", line);
-        }
-    }; 
-    Ok(table)
-}
-
-fn asn_colours_from_file<'a>(f: &'a str) -> io::Result<HashMap<u32, String>> {
-    let mut mapping: HashMap<u32, String> = HashMap::new();
-    let mut file = File::open(f)?;
-    let mut s = String::new();
-    file.read_to_string(&mut s)?;
-    for line in s.lines() {
-        let parts = line.split_whitespace().collect::<Vec<&str>>();
-        let asn = parts[0].parse::<u32>().unwrap();
-        let id = parts[1];
-        mapping.insert(asn, id.to_string());
-    }
-
-    Ok(mapping)
-}
 
 
 #[derive(Debug,CSVParsable)] //Deserialize
@@ -430,11 +377,10 @@ fn main() {
         eprintln!("no filtering of empty prefixes");
     }
 
-    // TODO: this is affected by how we impement the filtering of empty prefixes
+    // this is affected by how we impement the filtering of empty prefixes
     // do we want to keep empty more-specifics of parents with hits?
     // idea: be lenient in create-prefixes, so we have the option to be more restrictive in the filtering
     if matches.is_present("create-prefixes") {
-        //routes.retain(|r| r.datapoints.len() > 0);
         specifics.retain(|s| s.all_hits() > 0);
         let prefix_output_fn = format!("output/{}.prefixes",
                     Path::new(matches.value_of("address-file").unwrap()).file_name().unwrap().to_str().unwrap(),
@@ -446,24 +392,6 @@ fn main() {
         }
         exit(0);
     }
-
-    /*
-    // top 10 prefixes
-    eprintln!("top 10 prefixes with most hits");
-    routes.sort_by(|a, b| a.datapoints.len().cmp(&b.datapoints.len()).reverse());
-    for r in routes.iter().take(10) {
-        println!("{} {} : {}", r.asn, r.prefix, r.datapoints.len())
-    }
-    eprintln!("----");
-    
-    // bottom 10 smallest prefix lenghts
-    eprintln!("bottom 10 prefixes with smallest prefix lenghts");
-    routes.sort_by(|a, b| a.prefix_len().cmp(&b.prefix_len()).reverse());
-    for r in routes.iter().take(10) {
-        println!("{} {} : {}", r.asn, r.prefix, r.datapoints.len())
-    }
-    eprintln!("----");
-    */
 
     // initial aspect ratio FIXME this doesn't affect anything, remove
     let init_ar: f64 = 1_f64 / (4.0/1.0);
@@ -566,51 +494,6 @@ fn main() {
                 group.append(sub_rect);
             }
 
-            // drawing hits is future work after we've successfully got the hierarchical stuff working
-            /*
-            if matches.is_present("draw-hits") {
-                let mut rng = thread_rng();
-                let sample = sample(&mut rng, &area.route.datapoints, 1000); //TODO make variable
-                //println!("took {} as sample from {}", sample.len(), area.route.datapoints.len());
-                let mut g_hits = Group::new(); 
-                let first_ip = u128::from(area.route.prefix.iter().next().unwrap());
-                let mut u = area.surface / (area.route.prefix.size()) as f64; 
-                //FIXME location is still incorrect
-
-                //u = u  / (WIDTH );
-                //println!("u: {}", u);
-
-                
-                //for h in area.route.hits.iter() { 
-                for h in sample {
-                    let l = u128::from(h.ip6) - first_ip;
-                    //println!("l: {}", Ipv6Addr::from(l));
-                    let y = (l as f64 * u) / area.w;
-                    let x = (l as f64 * u) % area.w;
-                    //println!("x  = {}  % {} == {}", l as f64 * u, area.w, x);
-                    //println!("plotting {} at {} , {}", h, x, y);
-
-                    /*
-                    g_hits.append(Rectangle::new()
-                                  .set("x", area.x + x)
-                                  .set("y", area.y + y)
-                                  .set("width", 0.001)
-                                  .set("height", 0.001)
-                                  .set("stroke", "yellow")
-                                  .set("stroke-width", 0.1)
-                                  );
-                    */
-                    g_hits.append(Circle::new()
-                                    .set("cx", area.x + x)
-                                    .set("cy", area.y + y)
-                                    .set("r", 0.1)
-                                    .set("opacity", 0.1)
-                                    .set("fill", "yellow")
-                                    );
-                }
-                group.append(g_hits); 
-            }
-            */
 
 
             if !matches.is_present("no-labels") {
