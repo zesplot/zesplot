@@ -116,7 +116,7 @@ fn main() {
 
     let matches = App::new("zesmap")
                         .version("0.1")
-                        .author("drk")
+                        .author("Luuk Hendriks")
                         .arg(Arg::with_name("prefix-file")
                              .short("p")
                              .long("prefixes")
@@ -158,7 +158,7 @@ fn main() {
                         .arg(Arg::with_name("colour-input")
                              .short("c")
                              .long("colour-input")
-                             .help("Base the colours on any of the following:
+                             .help("Base the colours on one of the following:
                                 \"hits\" (default)
                                 \"hw\" (average hamming weight in prefix)
                                 \"mss\" (average TCP MSS in prefix)
@@ -168,7 +168,7 @@ fn main() {
                         )
                         .arg(Arg::with_name("scale-max")
                             .long("--scale-max")
-                            .help("[TEMP/DEV] Overrule maximum of colour scale, only for -c hits")
+                            .help("Overrule maximum of colour scale, only for -c hits")
                             .takes_value(true)
                         )
                         .arg(Arg::with_name("dp-function")
@@ -192,11 +192,11 @@ fn main() {
                                 Every unique ID will be assigned a colour on the scale.")
                             .takes_value(true)
                         )
-                        .arg(Arg::with_name("draw-hits")
-                             .short("d")
-                             .long("draw-hits")
-                             .help("Plot addresses on their respective areas")
-                        )
+                        //.arg(Arg::with_name("draw-hits")
+                        //     .short("d")
+                        //     .long("draw-hits")
+                        //     .help("Plot addresses on their respective areas")
+                        //)
                         .arg(Arg::with_name("plot-limit")
                              .short("l")
                              .long("limit")
@@ -489,6 +489,7 @@ fn main() {
             "ttl"   => "TTL".to_string(),
             "mss"   => "TCP MSS".to_string(),
             "dns"   => "DNS RA bit".to_string(),
+            "hw"    => {colour_mode = ColourMode::HwAvg;  "Hamming Weight".to_string()},
             "hits"|_ => "Hits".to_string()
         }
     };
@@ -505,11 +506,10 @@ fn main() {
     } else if matches.is_present("asn-colours") {
         colour_mode = ColourMode::Asn;
     } else if dp_desc == "TTL" || dp_desc == "TCP MSS" { //ugly..
-        eprintln!("in else");
         colour_mode = ColourMode::DpAvg;
     }
 
-    let plot_info = PlotInfo{max_hits, max_dp_avg, max_dp_median, max_dp_var, max_dp_uniq, max_dp_sum, colour_mode, dp_desc, asn_colours};
+    let plot_info = PlotInfo{max_hits, max_dp_avg, max_dp_median, max_dp_var, max_dp_uniq, max_dp_sum, max_hw_avg, colour_mode, dp_desc, asn_colours};
 
     let mut rows = Vec::new();
     //let (first_area, remaining_areas) = areas.split_first().unwrap();

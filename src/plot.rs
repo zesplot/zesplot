@@ -79,6 +79,7 @@ pub fn legend(plot_info: &PlotInfo) -> (Definitions, Group) {
         ColourMode::DpVar => plot_info.max_dp_var as f64,
         ColourMode::DpUniq =>plot_info.max_dp_uniq as f64,
         ColourMode::DpSum => plot_info.max_dp_sum as f64,
+        ColourMode::HwAvg => plot_info.max_hw_avg as f64,
         ColourMode::Asn => 5.0, //FIXME how do we do a scale based on plot_info.asn_colours ?
     };
 

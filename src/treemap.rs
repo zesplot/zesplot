@@ -52,6 +52,7 @@ pub enum ColourMode {
     DpVar,
     DpUniq,
     DpSum,
+    HwAvg,
     Asn
 }
     
@@ -64,6 +65,7 @@ pub struct PlotInfo<'a> {
     pub max_dp_var: f64,
     pub max_dp_uniq: usize,
     pub max_dp_sum: usize,
+    pub max_hw_avg: f64,
     pub colour_mode: ColourMode,
     pub dp_desc: String,
     pub asn_colours: &'a HashMap<u32, String>
@@ -213,6 +215,7 @@ impl Specific {
             ColourMode::DpVar => r.assign("fill", colour(self.dp_var() as u32, plot_info.max_dp_var as u32)),
             ColourMode::DpUniq => r.assign("fill", colour(self.dp_uniq() as u32, plot_info.max_dp_uniq as u32)),
             ColourMode::DpSum => r.assign("fill", colour(self.dp_sum() as u32, plot_info.max_dp_sum as u32)),
+            ColourMode::HwAvg => r.assign("fill", colour(self.hw_avg() as u32, plot_info.max_hw_avg as u32)),
             ColourMode::Asn => r.assign("fill", colour_from_map(self.asn(), plot_info.asn_colours))
         }
         r
