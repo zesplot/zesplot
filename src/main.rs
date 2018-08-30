@@ -22,7 +22,7 @@ use easy_csv::{CSVIterator};
 use std::time::{Instant};
 
 extern crate treebitmap;
-use treebitmap::{IpLookupTable, IpLookupTableOps};
+use treebitmap::{IpLookupTable};
 use std::io;
 
 use std::process::exit;
@@ -311,7 +311,7 @@ fn main() {
     //eprintln!("uniq_dps: {}", uniq_dps.len());
 
     now = Instant::now();
-    let table = prefixes_from_file(matches.value_of("prefix-file").unwrap()).unwrap();
+    let mut table = prefixes_from_file(matches.value_of("prefix-file").unwrap()).unwrap();
 
     //eprintln!("-- matching /128s with prefixes");
 
@@ -319,7 +319,7 @@ fn main() {
     let mut prefix_mismatches = 0;
     let mut asn_to_hits: HashMap<String, usize> = HashMap::new();
     for dp in datapoints.into_iter() {
-        if let Some((_, _, s)) = table.longest_match(dp.ip6) {
+        if let Some((_, _, s)) = table.longest_match_mut(dp.ip6) {
             s.push_dp(dp);
             let asn_hitcount = asn_to_hits.entry(s.asn.clone()).or_insert(0);
             *asn_hitcount += 1;

@@ -4,13 +4,13 @@ version = "0.1.0"
 authors = ["Luuk Hendriks <mail@luukhendriks.eu>"]
 
 [dependencies]
-svg = "*"
-ipnetwork = { version = "*", features = ["ipv6-iterator", "ipv6-methods"] }
-num = "*"
-clap = "*"
-rand = "*"
-serde = "1"
-serde_derive = "1"
+svg = "0.5.10"
+ipnetwork = "0.13.0" #{ version = "0.13.0", features = ["ipv6-iterator", "ipv6-methods"] }
+num = "0.1.42"
+clap = "2.31.2"
+rand = "0.4.2"
+serde = "1.0.36"
+serde_derive = "1.0.36"
 
 easy-csv = "0.3.2"
 easy-csv-derive = "0.3.2"
@@ -18,8 +18,7 @@ csv = "0.15"
 
 hex = "0.3.2"
 
-radix_trie = "*"
-#treebitmap = "*"
-treebitmap = {version = "*", path = "../treebitmap/"}
+radix_trie = "0.1.3"
+treebitmap = {git="https://github.com/zesplot/treebitmap.git", branch="longest_match_mut"}
 
 colored = "1.6"
