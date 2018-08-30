@@ -188,7 +188,7 @@ fn main() {
                         )
                         .arg(Arg::with_name("asn-colours")
                             .long("asn-colours")
-                            .help("Additional colours for ASNs. File should contain lines with 'ASN ID'.
+                            .help("Additional colours for ASNs. File should contain lines, formatted '$ASN $ID'.
                                 Every unique ID will be assigned a colour on the scale.")
                             .takes_value(true)
                         )
@@ -256,7 +256,6 @@ fn main() {
                             ip6: z.saddr.parse().unwrap(),
                             //first bit in byte 4 is RA bit
                             meta: ((hex::decode(z.data).unwrap()[3] & 0b1000_0000) >> 7) as u32,
-                            //  let bytes = u32::from_str_radix("41973333", 16).unwrap();
                         }
                     );
                 }
@@ -343,7 +342,8 @@ fn main() {
     let mut max_dp_var = 0f64;
     let mut max_dp_uniq = 0_usize;
     let mut max_dp_sum = 0_usize;
-    // maximum hamming weight: // TODO do we need var/median etc?
+    // maximum hamming weight:
+    // do we need var/median etc?
     let mut max_hw_avg = 0f64;
     let unsized_rectangles = matches.is_present("unsized-rectangles");
     

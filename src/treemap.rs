@@ -25,9 +25,11 @@ impl DataPoint {
     fn hamming_weight(&self, prefix_len: u8) -> u32 {
         (u128::from(self.ip6) << prefix_len  >> prefix_len).count_ones()
     }
-    fn _hamming_weight_iid(&self) -> u32 {
+    #[allow(dead_code)]
+    fn hamming_weight_iid(&self) -> u32 {
         self.hamming_weight(64)
     }
+    #[allow(dead_code)]
     fn ttl_to_start_value(&mut self) -> () {
         self.meta = match self.meta {
             0...31 => 32,
@@ -37,6 +39,7 @@ impl DataPoint {
             _ => self.meta
         };
     }
+    #[allow(dead_code)]
     pub fn ttl_to_path_length(&mut self) -> () {
         if self.meta > 128  {
             self.meta -= 1;
@@ -59,7 +62,6 @@ pub enum ColourMode {
 
 pub struct PlotInfo<'a> {
     pub max_hits: usize,
-    //pub max_dp: f64,
     pub max_dp_avg: f64,
     pub max_dp_median: f64,
     pub max_dp_var: f64,
@@ -132,6 +134,7 @@ impl Specific {
         sum as f64 / self.datapoints.len() as f64
     }
 
+    #[allow(dead_code)]
     pub fn dps_ttl_to_path_length(&mut self) -> () {
         for mut dp in &mut self.datapoints {
             dp.ttl_to_path_length();
@@ -205,8 +208,8 @@ impl Specific {
             .set("data-dp-var", format!("{:.1}", self.dp_var()))
             .set("data-dp-uniq", format!("{:.1}", self.dp_uniq()))
             .set("data-dp-sum", format!("{:.1}", self.dp_sum()))
+            .set("data-hw-avg", format!("{:.1}", self.hw_avg()))
             ;
-            //.set("data-hw-avg", format!("{:.1}", area.route.hw_avg())) // TODO 
 
         match plot_info.colour_mode {
             ColourMode::Hits => r.assign("fill", colour(self.hits() as u32, plot_info.max_hits as u32)),
@@ -221,9 +224,48 @@ impl Specific {
         r
 
         // TODO: re-implement the drawing of addresses as dots within the prefix rectangle
+        // NB: the stuff below was an earlier attempt based on the OLD data model!
         /*
         if matches.is_present("draw-hits") {
-            // sampling of points?
+            let mut rng = thread_rng();
+            let sample = sample(&mut rng, &area.route.datapoints, 1000); 
+            //println!("took {} as sample from {}", sample.len(), area.route.datapoints.len());
+            let mut g_hits = Group::new(); 
+            let first_ip = u128::from(area.route.prefix.iter().next().unwrap());
+            let mut u = area.surface / (area.route.prefix.size()) as f64; 
+
+            //u = u  / (WIDTH );
+            //println!("u: {}", u);
+
+            
+            //for h in area.route.hits.iter() { 
+            for h in sample {
+                let l = u128::from(h.ip6) - first_ip;
+                //println!("l: {}", Ipv6Addr::from(l));
+                let y = (l as f64 * u) / area.w;
+                let x = (l as f64 * u) % area.w;
+                //println!("x  = {}  % {} == {}", l as f64 * u, area.w, x);
+                //println!("plotting {} at {} , {}", h, x, y);
+
+                /*
+                g_hits.append(Rectangle::new()
+                              .set("x", area.x + x)
+                              .set("y", area.y + y)
+                              .set("width", 0.001)
+                              .set("height", 0.001)
+                              .set("stroke", "yellow")
+                              .set("stroke-width", 0.1)
+                              );
+                */
+                g_hits.append(Circle::new()
+                                .set("cx", area.x + x)
+                                .set("cy", area.y + y)
+                                .set("r", 0.1)
+                                .set("opacity", 0.1)
+                                .set("fill", "yellow")
+                                );
+            }
+            group.append(g_hits); 
         }
         */
 
@@ -295,12 +337,10 @@ pub fn specs_to_hier(specifics: &Vec<Specific>) -> Vec<Specific> {
     let mut start_from = 0;
     
     if specifics.len() == 0 {
-        //println!("early done 0");
         return vec![];
     }
     
     if specifics.len() == 1 {
-        //println!("early done 1 for {:?}", specifics.first().unwrap());
         return specifics.clone();
     }
     
@@ -417,16 +457,6 @@ impl Row {
         } else {
             area.y = self.y;
         }
-
-        //if area.specific.specifics.len() > 0 {
-        //    println!("got specifics in this area");
-        //    for s in &area.specific.specifics {
-        //        println!("got {} size {}", s.network, s.prefix_len());
-        //        let norm_factor = 1_f64;
-        //        let sub_area = Area::new(s.size(true) as f64 * norm_factor, 1_f64, s.clone()  );
-        //        &self.areas.push(sub_area);
-        //    }
-        //}
 
         &self.areas.push(area);
         self.reflow();

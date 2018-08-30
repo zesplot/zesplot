@@ -10,7 +10,6 @@ pub const HEIGHT: f64 = 100.0;
 pub const PLOT_LIMIT: u64 = 2000;
 pub const COLOUR_INPUT: &str = "hits";
 
-const LABEL_DP_DESC_HEIGHT: f64 = 6.0;      // height of the datapoint description label (e.g. var(TTL))
 const LEGEND_GRADIENT_WIDTH: f64 = 3.0;     // width of the gradient itself
 const LEGEND_GRADIENT_MARGIN: f64 = 2.0;    // margin between gradient and the plot and the ticks
 const LEGEND_GRADIENT_HEIGHT: f64 = HEIGHT; // - LABEL_DP_DESC_HEIGHT;     // width of the gradient itself
