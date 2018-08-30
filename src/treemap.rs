@@ -6,7 +6,6 @@ use std::net::Ipv6Addr;
 use svg::Node;
 
 use std::collections::{HashMap, HashSet};
-use std::iter::FromIterator;
 
 #[derive(Debug, Clone)]
 pub struct Specific {
@@ -26,7 +25,7 @@ impl DataPoint {
     fn hamming_weight(&self, prefix_len: u8) -> u32 {
         (u128::from(self.ip6) << prefix_len  >> prefix_len).count_ones()
     }
-    fn hamming_weight_iid(&self) -> u32 {
+    fn _hamming_weight_iid(&self) -> u32 {
         self.hamming_weight(64)
     }
     fn ttl_to_start_value(&mut self) -> () {
@@ -107,10 +106,6 @@ impl Specific {
 
     pub fn dp_var(&self) -> f64 {
         var(&self.datapoints.iter().map(|dp| dp.meta).collect())
-        //let sum = self.datapoints.iter().fold(0, |sum, dp| sum + dp.meta);
-        //let mean = sum as f64 / self.datapoints.len() as f64;
-        //let var = self.datapoints.iter().fold(0.0, |var, dp| var as f64 + (dp.meta as f64 - mean).powf(2.0) ) / (self.datapoints.len() -1) as f64;
-        //var
     }
 
     pub fn dp_median(&self) -> f64 {
@@ -123,17 +118,16 @@ impl Specific {
             uniq_meta.insert(dp.meta);
         }
         let hash_len = uniq_meta.len();
-        //TODO: why is this different? (not essential for zesplot)
-        //let mut tmp = self.datapoints.iter().map(|dp| dp.meta).collect::<Vec<u32>>();
-        //tmp.dedup();
-        //tmp.shrink_to_fit();
-        //tmp.len() // as usize
         hash_len
-
     }
 
     pub fn dp_sum(&self) -> usize {
         self.datapoints.iter().fold(0, |s, i| s + i.meta as usize)
+    }
+
+    pub fn hw_avg(&self) -> f64 {
+        let sum = self.datapoints.iter().fold(0, |s, i| s + i.hamming_weight(self.prefix_len()));
+        sum as f64 / self.datapoints.len() as f64
     }
 
     pub fn dps_ttl_to_path_length(&mut self) -> () {
@@ -169,17 +163,8 @@ impl Specific {
     }
 
     pub fn __size(&self) -> u128 {
-        //(128 - self.network.prefix()).into()
-
-        //let mut exp = self.network.prefix() as u32;
-        //if exp < 24 {
-        //    exp = 24;
-        //}
-        //if exp > 48 {
-        //    exp = 48;
-        //}
-        //let r = 2_u128.pow(128 - exp);
-        //r
+        // while 2^ is more accurate, 1.2^ results in more readable plots
+        // possibly parametrize this
         1.2_f64.powf(128.0 - self.network.prefix() as f64) as u128
     }
     
@@ -205,7 +190,7 @@ impl Specific {
             .set("y", y)
             .set("width", w * w_factor)
             .set("height", h * h_factor)
-            .set("stroke-width", 0.5_f64.min(0.001_f64.max(w * h * 0.0005 * h_factor)))
+            .set("stroke-width", 0.5_f64.min(0.0001_f64.max(w * h * 0.0005 * h_factor)))
             .set("stroke", "#aaaaaa")
             .set("opacity", 1.0)
             .set("data-asn", self.asn.to_string())
@@ -219,6 +204,7 @@ impl Specific {
             .set("data-dp-uniq", format!("{:.1}", self.dp_uniq()))
             .set("data-dp-sum", format!("{:.1}", self.dp_sum()))
             ;
+            //.set("data-hw-avg", format!("{:.1}", area.route.hw_avg())) // TODO 
 
         match plot_info.colour_mode {
             ColourMode::Hits => r.assign("fill", colour(self.hits() as u32, plot_info.max_hits as u32)),
@@ -230,7 +216,14 @@ impl Specific {
             ColourMode::Asn => r.assign("fill", colour_from_map(self.asn(), plot_info.asn_colours))
         }
         r
-            //.set("data-hw-avg", format!("{:.1}", area.route.hw_avg()))
+
+        // TODO: re-implement the drawing of addresses as dots within the prefix rectangle
+        /*
+        if matches.is_present("draw-hits") {
+            // sampling of points?
+        }
+        */
+
     }
 
     pub fn rects_in_specifics(&self, x: f64, y: f64, w: f64, h: f64, w_factor: f64, h_factor: f64, plot_info: &PlotInfo) -> Vec<super::Rectangle> {
@@ -251,9 +244,6 @@ impl Specific {
     }
 
     pub fn all_rects(&self, area: &Area, plot_info: &PlotInfo) -> Vec<super::Rectangle> {
-        //let mut result = self.rects_in_specifics(area, 1.0);
-        //result.push(self.to_rect(area, 1.0));
-        //result
         let mut result = vec![self.to_rect(area.x, area.y, area.w, area.h, 1.0, 1.0, plot_info)];
         result.append(&mut self.rects_in_specifics(area.x, area.y, area.w, area.h, 1.0, 0.5, plot_info));
         result
@@ -262,7 +252,6 @@ impl Specific {
 
 
 pub fn specs_to_hier_with_rest_index(specifics: &Vec<Specific>, index: usize) -> (Vec<Specific>, usize) {
-    //println!("specs_rest_index, len {} start from {}", specifics.len(), index);
     let current_specific: &Specific;
     if let Some((first, rest)) = specifics[index..].split_first() {
         current_specific = first;

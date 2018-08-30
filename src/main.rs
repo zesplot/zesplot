@@ -36,7 +36,7 @@ use clap::{Arg, App};
 
 use svg::*;
 use svg::node::Text as Tekst;
-use svg::node::element::{Rectangle, Circle, Text, Group};
+use svg::node::element::{Rectangle, Text, Group};
 
 use ipnetwork::Ipv6Network;
 use std::net::Ipv6Addr;
@@ -45,8 +45,6 @@ use std::io::{BufReader};
 use std::io::prelude::*;
 use std::fs::File;
 use std::path::Path;
-
-use rand::{thread_rng, sample};
 
 // the input for prefixes_from_file is generated a la:
 // ./bgpdump -M latest-bview.gz | ack "::/" cut -d'|' -f 6,7 --output-delimiter=" " | awk '{print $1,$NF}' |sort -u
@@ -68,20 +66,12 @@ fn prefixes_from_file<'a>(f: &'a str) -> io::Result<IpLookupTable<Ipv6Addr,Speci
     let mut table: IpLookupTable<Ipv6Addr,Specific> = IpLookupTable::new();
     for line in s.lines() {
         let parts = line.split_whitespace().collect::<Vec<&str>>();
-        //let route: Ipv6Network = parts[0].parse().unwrap();
         if let Ok(route) = parts[0].parse::<Ipv6Network>(){
 
-            let asn = parts[1]; //.parse::<u32>();
+            // asn is not a u32, as some routes have an asn_asn_asn,asn notation in pfx2as
+            let asn = parts[1];
                 table.insert(route.ip(), route.prefix().into(),
                         Specific { network: route, asn: asn.to_string(), datapoints: Vec::new(), specifics: Vec::new()});
-            // TODO remove parsing to u32 because of asn_asn,asn notation in pfx2as
-            //if let Ok(asn) = asn.parse::<u32>() {
-            //    table.insert(route.ip(), route.prefix().into(),
-            //            //Route { prefix: route, asn: asn.parse::<u32>().unwrap(), hits: Vec::new()});
-            //            Route { prefix: route, asn: asn, hits: Vec::new()});
-            //} else {
-            //    eprintln!("choked on {} while reading prefixes file", line);
-            //}
         } else {
                 eprintln!("choked on {} while reading prefixes file", line);
         }
@@ -239,18 +229,11 @@ fn main() {
     eprintln!("-- reading input files");
 
     let mut datapoints: Vec<DataPoint> = Vec::new();
-    //let mut datapoints: Vec<DataPoint> = Vec::with_capacity(5_000_000);
-    //TODO: do we want to filter duplicate addresses from the input file?
-    // the current test file contains ~2k duplicates on 4.6M entries
-    let mut uniq_ip6s: HashSet<Ipv6Addr> = HashSet::new();
-    //let mut uniq_dps: HashSet<DataPoint> = HashSet::new();
-
-    let mut now = Instant::now();
+    let now = Instant::now();
     if matches.value_of("address-file").unwrap().contains(".csv") {
         // expect ZMAP output as input
         
         let mut rdr = csv::Reader::from_file(matches.value_of("address-file").unwrap()).unwrap();
-        // TODO: add every ip to uniq_ips, so we only add new datapoints when we have not seen the IP before
         match matches.value_of("colour-input").unwrap() {
             "mss" => {
                 let iter = CSVIterator::<ZmapRecordTcpmss,_>::new(&mut rdr).unwrap();
@@ -307,13 +290,7 @@ fn main() {
 
     eprintln!("[TIME] file read: {}.{:.2}s", now.elapsed().as_secs(),  now.elapsed().subsec_nanos() / 1_000_000);
 
-    eprintln!("uniq_ip6s: {}", uniq_ip6s.len());
-    //eprintln!("uniq_dps: {}", uniq_dps.len());
-
-    now = Instant::now();
     let mut table = prefixes_from_file(matches.value_of("prefix-file").unwrap()).unwrap();
-
-    //eprintln!("-- matching /128s with prefixes");
 
     eprintln!("prefixes: {} , addresses: {}", table.iter().count(), datapoints.len());
     let mut prefix_mismatches = 0;
@@ -324,14 +301,11 @@ fn main() {
             let asn_hitcount = asn_to_hits.entry(s.asn.clone()).or_insert(0);
             *asn_hitcount += 1;
         } else {
-            //eprintln!("could not match {:?}", dp.ip6);
-            //let asn_hitcount = asn_to_hits.entry(s.asn.clone()).or_insert(0); //TODO ugly fix so we can use retain() on the specifics later on 
             prefix_mismatches += 1;
         }
     }
 
     let unique_asns: HashSet<String> = asn_to_hits.keys().cloned().collect();
-    eprintln!("hits for 701: {}", asn_to_hits.get("701").unwrap_or(&0_usize));
     
     if prefix_mismatches > 0 {
         let s = format!("Could not match {} addresses", prefix_mismatches).to_string().on_red().bold();
@@ -369,8 +343,8 @@ fn main() {
     let mut max_dp_var = 0f64;
     let mut max_dp_uniq = 0_usize;
     let mut max_dp_sum = 0_usize;
-    // maximum hamming weight: // TODO do we need avg/var?
-    let mut max_hamming_weight = 0f64;
+    // maximum hamming weight: // TODO do we need var/median etc?
+    let mut max_hw_avg = 0f64;
     let unsized_rectangles = matches.is_present("unsized-rectangles");
     
     for (_,_,s) in table.iter() {
@@ -392,6 +366,10 @@ fn main() {
         }
         if s.dp_sum() > max_dp_sum {
             max_dp_sum = s.dp_sum();
+        }
+        // hamming weight:
+        if s.hw_avg() > max_hw_avg {
+            max_hw_avg = s.hw_avg();
         }
     }
 
@@ -488,7 +466,7 @@ fn main() {
     */
 
     // initial aspect ratio FIXME this doesn't affect anything, remove
-    let init_ar: f64 = 1_f64 / (8.0/1.0);
+    let init_ar: f64 = 1_f64 / (4.0/1.0);
 
     let norm_factor = (plot::WIDTH * plot::HEIGHT) / total_area as f64;
 
@@ -496,9 +474,6 @@ fn main() {
 
     // sort by both size and ASN, so ASs are grouped in the final plot
     specifics.sort_by(|a, b| b.prefix_len().cmp(&a.prefix_len()).reverse().then(a.asn.cmp(&b.asn))  );
-
-    // TODO: should we sort differently when creating an unsized plot?
-    //specifics.sort_by(|a, b| a.asn.cmp(&b.asn).then(a.network.ip().cmp(&b.network.ip())));
 
     for s in specifics {
         areas.push(Area::new(s.size(unsized_rectangles) as f64 * norm_factor, init_ar, s  ));

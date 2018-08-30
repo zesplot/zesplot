@@ -1,6 +1,6 @@
 extern crate svg;
 use svg::Node;
-use svg::node::element::{Rectangle, Circle, Text, Group, Definitions, LinearGradient, Stop};
+use svg::node::element::{Rectangle, Text, Group, Definitions, LinearGradient, Stop};
 use svg::node::Text as Tekst;
 
 use treemap::{PlotInfo,ColourMode};
@@ -17,10 +17,9 @@ const LEGEND_GRADIENT_HEIGHT: f64 = HEIGHT; // - LABEL_DP_DESC_HEIGHT;     // wi
 
 const TICK_FIRST_Y: f64 = 0.0; //LABEL_DP_DESC_HEIGHT * 1.5; 
 const TICK_HEIGHT_DELTA: f64 = LEGEND_GRADIENT_HEIGHT / 4.0; // 4.0 because we have 5 ticks, so 4 spaces in between
-const TICK_X: f64 = WIDTH + LEGEND_GRADIENT_WIDTH + 2.0*LEGEND_GRADIENT_MARGIN ; // FIXME 5.0 for Tekst width?
+const TICK_X: f64 = WIDTH + LEGEND_GRADIENT_WIDTH + 2.0*LEGEND_GRADIENT_MARGIN ; 
 const TICK_FONT_SIZE: &str = "40%";
-pub const LEGEND_MARGIN_W: f64 = LEGEND_GRADIENT_WIDTH + 2.0*LEGEND_GRADIENT_MARGIN + 20.0; // FIXME 5.0 for Tekst width?
-//pub const LEGEND_MARGIN_Y: f64 = LEGEND_GRADIENT_WIDTH + 2.0*LEGEND_GRADIENT_MARGIN + 25.0; // FIXME 5.0 for Tekst width?
+pub const LEGEND_MARGIN_W: f64 = LEGEND_GRADIENT_WIDTH + 2.0*LEGEND_GRADIENT_MARGIN + 20.0;
 
 
 
@@ -100,9 +99,9 @@ pub fn legend(plot_info: &PlotInfo) -> (Definitions, Group) {
         legend_25 = 2_f64.powf(256_f64 / norm);
         legend_0 = 1.0;
     } else {
-        legend_75 = (786_f64 / norm);
-        legend_50 = (512_f64 / norm);
-        legend_25 = (256_f64 / norm);
+        legend_75 = 786_f64 / norm;
+        legend_50 = 512_f64 / norm;
+        legend_25 = 256_f64 / norm;
         legend_0 = 1.0;
     }
 
@@ -190,7 +189,7 @@ pub fn legend(plot_info: &PlotInfo) -> (Definitions, Group) {
     (defs, legend_g)
 }
 
-pub fn legend_discrete(plot_info: &PlotInfo) -> (Definitions, Group) {
+pub fn legend_discrete(_plot_info: &PlotInfo) -> (Definitions, Group) {
 
     // NB hardcoded for now, should match the HashMap in treemap.rs
     let scale = vec!["#ff0000",
@@ -200,7 +199,6 @@ pub fn legend_discrete(plot_info: &PlotInfo) -> (Definitions, Group) {
                      "#00ffff",
                      "#0000ff",
                     ];
-
 
 
     let defs = Definitions::new();
