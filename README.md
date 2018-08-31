@@ -51,9 +51,16 @@ inlined in `html/index.html`.
 
 ## Example output
 
+For both static and interactive examples, check out [this page](https://ipv6hitlist.github.io/zesplot/) related to our IMC paper.
+
+As a sneak preview, and to brighten up this page:
 
 ![zesplot example output](doc/example_output.png)
 
+
+More examples showcasing the various features of zesplot will be described
+soon, though the page linked above gives a good impression of all the
+possibilities.
 
 ```
 
