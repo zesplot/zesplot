@@ -1,8 +1,6 @@
 mod treemap;
 use treemap::{Area,Row,DataPoint,PlotInfo,specs_to_hier,Specific,ColourMode};
 
-mod input;
-use input::{prefixes_from_file, asn_colours_from_file};
 mod plot;
 
 use std::collections::HashSet;
@@ -12,13 +10,14 @@ extern crate colored;
 use colored::*;
 
 extern crate easy_csv;
-#[macro_use]
-extern crate easy_csv_derive;
+#[macro_use] extern crate easy_csv_derive;
 extern crate csv;
 
 extern crate hex;
+extern crate treebitmap;
 
-use easy_csv::{CSVIterator};
+mod input;
+use input::*; //::{prefixes_from_file, asn_colours_from_file};
 
 
 use std::time::{Instant};
@@ -40,24 +39,6 @@ use std::io::{BufReader};
 use std::io::prelude::*;
 use std::fs::File;
 use std::path::Path;
-
-
-#[derive(Debug,CSVParsable)] //Deserialize
-struct ZmapRecord {
-    saddr: String,
-    ttl: u8,
-}
-
-#[derive(Debug,CSVParsable)] //Deserialize
-struct ZmapRecordTcpmss {
-    saddr: String,
-    tcpmss: u16
-}
-#[derive(Debug,CSVParsable)] //Deserialize
-struct ZmapRecordDns {
-    saddr: String,
-    data: String
-}
 
 fn main() {
 
@@ -154,13 +135,19 @@ fn main() {
                              .long("no-labels")
                              .help(&format!("Omit the text labels in the final plot"))
                         )
-                        .arg(Arg::with_name("create-html")
+                        .arg(Arg::with_name("html-template")
                              .long("html")
-                             .help(&format!("Create HTML wrapper output in ./html"))
+                             .help(&format!("Create HTML wrapper based on passed template"))
+                             .takes_value(true)
                         )
                         .arg(Arg::with_name("output-fn")
                              .long("output-fn")
                              .help(&format!("Override the generated output filenames. File extensions (.svg, .html) will be appended."))
+                             .takes_value(true)
+                        )
+                        .arg(Arg::with_name("output-dir")
+                             .long("output-dir")
+                             .help(&format!("Specific where to save generated files. Default is current working dir."))
                              .takes_value(true)
                         )
                         .arg(Arg::with_name("create-prefixes")
@@ -175,64 +162,10 @@ fn main() {
 
     eprintln!("-- reading input files");
 
-    let mut datapoints: Vec<DataPoint> = Vec::new();
+    //let mut datapoints: Vec<DataPoint> = Vec::new();
     let now = Instant::now();
-    if matches.value_of("address-file").unwrap().contains(".csv") {
-        // expect ZMAP output as input
-        
-        let mut rdr = csv::Reader::from_file(matches.value_of("address-file").unwrap()).unwrap();
-        match matches.value_of("colour-input").unwrap() {
-            "mss" => {
-                let iter = CSVIterator::<ZmapRecordTcpmss,_>::new(&mut rdr).unwrap();
-                for zmap_record in iter {
-                    let z = zmap_record.unwrap();
-                    datapoints.push(
-                        DataPoint { 
-                            ip6: z.saddr.parse().unwrap(),
-                            meta: z.tcpmss.into()
-                        }
-                    );
-                }
-            }
-            "dns" => {
-                let iter = CSVIterator::<ZmapRecordDns,_>::new(&mut rdr).unwrap();
-                for zmap_record in iter {
-                    let z = zmap_record.unwrap();
-                    datapoints.push(
-                        DataPoint { 
-                            ip6: z.saddr.parse().unwrap(),
-                            //first bit in byte 4 is RA bit
-                            meta: ((hex::decode(z.data).unwrap()[3] & 0b1000_0000) >> 7) as u32,
-                        }
-                    );
-                }
-            }
-            // TODO: do we want to default to TTL? can be confusing maybe
-            // we need to take the tooltip in the html into consideration
-            // and perhaps only show dp-avg/var/uniq when an explicit dp is passed (ie -c mss or -c ttl)
-            "ttl"|_ => {
-                let iter = CSVIterator::<ZmapRecord,_>::new(&mut rdr).unwrap();
-                for zmap_record in iter {
-                    let z = zmap_record.unwrap();
-                    datapoints.push(
-                        DataPoint { 
-                            ip6: z.saddr.parse().unwrap(),
-                            meta: z.ttl.into()
-                        }
-                    );
-                    datapoints.last_mut().unwrap().ttl_to_path_length();
-                }
-            }
-        }
-    } else {
-        // expect a simple list of IPv6 addresses separated by newlines
-        for line in BufReader::new(
-                File::open(matches.value_of("address-file").unwrap()).unwrap()
-            ).lines(){
-                let line = line.unwrap();
-                datapoints.push(DataPoint { ip6: line.parse().unwrap(), meta: 0 });
-            }
-    }
+    let datapoints = read_datapoints_from_file(matches.value_of("address-file").unwrap(),
+                                                matches.value_of("colour-input").unwrap()).unwrap();
 
     eprintln!("[TIME] file read: {}.{:.2}s", now.elapsed().as_secs(),  now.elapsed().subsec_nanos() / 1_000_000);
 
@@ -258,8 +191,12 @@ fn main() {
         eprintln!("{}", s);
     }
 
+    // this is also used later on when creating svg/html files
+    let output_dir = matches.value_of("output-dir").unwrap_or_else(|| "./");
+
     if matches.is_present("create-addresses") {
-        let address_output_fn = format!("output/{}.addresses",
+        let address_output_fn = format!("{}/{}.addresses",
+                    output_dir,
                     Path::new(matches.value_of("address-file").unwrap()).file_name().unwrap().to_str().unwrap(),
         );
         eprintln!("creating address file {}", address_output_fn);
@@ -382,7 +319,8 @@ fn main() {
     // idea: be lenient in create-prefixes, so we have the option to be more restrictive in the filtering
     if matches.is_present("create-prefixes") {
         specifics.retain(|s| s.all_hits() > 0);
-        let prefix_output_fn = format!("output/{}.prefixes",
+        let prefix_output_fn = format!("{}/{}.prefixes",
+                    output_dir,
                     Path::new(matches.value_of("address-file").unwrap()).file_name().unwrap().to_str().unwrap(),
         );
         eprintln!("creating prefix file {}", prefix_output_fn);
@@ -560,31 +498,33 @@ fn main() {
     };
 
 
-    
-    let output_fn_svg = format!("output/{}.svg", output_fn);
+    let output_fn_svg = format!("{}/{}.svg", output_dir, output_fn);
     eprintln!("creating {}", output_fn_svg);
     svg::save(&output_fn_svg, &document).unwrap();
 
-    if matches.is_present("create-html") {
+    if matches.is_present("html-template") {
 
-        svg::save("html/image.svg", &document).unwrap();
+        svg::save("image.svg", &document).unwrap();
         let mut raw_svg = String::new();
         BufReader::new(
-            File::open("html/image.svg").unwrap()
+            File::open("image.svg").unwrap()
         ).read_to_string(&mut raw_svg).unwrap();
 
         let mut template = String::new();
+        let template_fn = matches.value_of("html-template").unwrap();
         BufReader::new(
-            File::open("html/index.html.template").unwrap()
+            File::open(template_fn).unwrap()
         ).read_to_string(&mut template).unwrap();
 
         let html = template.replace("__SVG__", &raw_svg);
 
-        let output_fn_html = format!("html/{}.html", output_fn);
+        let output_fn_html = format!("{}.html", output_fn);
         eprintln!("creating {}", output_fn_html);
         let mut html_file = File::create(output_fn_html).unwrap();
         html_file.write_all(&html.as_bytes()).unwrap();
-        let mut html_file = File::create("html/index.html").unwrap();
+
+        // create a file with a static name for easy experimenting with parameters
+        let mut html_file = File::create("index.html").unwrap();
         html_file.write_all(&html.as_bytes()).unwrap();
     }
 

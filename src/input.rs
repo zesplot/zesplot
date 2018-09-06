@@ -1,4 +1,4 @@
-use treemap::Specific;
+use treemap::{Specific, DataPoint};
 
 use std::net::Ipv6Addr;
 use ipnetwork::Ipv6Network;
@@ -7,9 +7,15 @@ use std::io;
 use std::io::prelude::*;
 use std::collections::HashMap;
 use std::fs::File;
+use std::io::BufReader;
 
-extern crate treebitmap;
-use self::treebitmap::{IpLookupTable};
+use super::*; // ugly 'fix' ?
+use easy_csv::{CSVIterator};
+
+use csv;
+use hex;
+
+use treebitmap::{IpLookupTable};
 
 // the input for prefixes_from_file is generated a la:
 // ./bgpdump -M latest-bview.gz | ack "::/" cut -d'|' -f 6,7 --output-delimiter=" " | awk '{print $1,$NF}' |sort -u
@@ -57,4 +63,83 @@ pub fn asn_colours_from_file<'a>(f: &'a str) -> io::Result<HashMap<u32, String>>
     }
 
     Ok(mapping)
+}
+
+#[derive(Debug,CSVParsable)] //Deserialize
+struct ZmapRecord {
+    saddr: String,
+    ttl: u8,
+}
+
+#[derive(Debug,CSVParsable)] //Deserialize
+struct ZmapRecordTcpmss {
+    saddr: String,
+    tcpmss: u16
+}
+#[derive(Debug,CSVParsable)] //Deserialize
+struct ZmapRecordDns {
+    saddr: String,
+    data: String
+}
+
+pub fn read_datapoints_from_file<'a, 'b>(f: &'a str, colour_input: &'b str) -> io::Result<Vec<DataPoint>> {
+    let mut datapoints: Vec<DataPoint> = Vec::new();
+
+    if f.contains(".csv") {
+        // expect ZMAP output as input
+        
+        let mut rdr = csv::Reader::from_file(f).expect("Failed to open addresses file");
+        match colour_input {
+            "mss" => {
+                let iter = CSVIterator::<ZmapRecordTcpmss,_>::new(&mut rdr).unwrap();
+                for zmap_record in iter {
+                    let z = zmap_record.unwrap();
+                    datapoints.push(
+                        DataPoint { 
+                            ip6: z.saddr.parse().unwrap(),
+                            meta: z.tcpmss.into()
+                        }
+                    );
+                }
+            }
+            "dns" => {
+                let iter = CSVIterator::<ZmapRecordDns,_>::new(&mut rdr).unwrap();
+                for zmap_record in iter {
+                    let z = zmap_record.unwrap();
+                    datapoints.push(
+                        DataPoint { 
+                            ip6: z.saddr.parse().unwrap(),
+                            //first bit in byte 4 is RA bit
+                            meta: ((hex::decode(z.data).unwrap()[3] & 0b1000_0000) >> 7) as u32,
+                        }
+                    );
+                }
+            }
+            // TODO: do we want to default to TTL? can be confusing maybe
+            // we need to take the tooltip in the html into consideration
+            // and perhaps only show dp-avg/var/uniq when an explicit dp is passed (ie -c mss or -c ttl)
+            "ttl"|_ => {
+                let iter = CSVIterator::<ZmapRecord,_>::new(&mut rdr).unwrap();
+                for zmap_record in iter {
+                    let z = zmap_record.unwrap();
+                    datapoints.push(
+                        DataPoint { 
+                            ip6: z.saddr.parse().unwrap(),
+                            meta: z.ttl.into()
+                        }
+                    );
+                    datapoints.last_mut().unwrap().ttl_to_path_length();
+                }
+            }
+        }
+    } else {
+        // expect a simple list of IPv6 addresses separated by newlines
+        for line in BufReader::new(
+                File::open(f).expect("Failed to open addresses file")
+            ).lines(){
+                let line = line.unwrap();
+                datapoints.push(DataPoint { ip6: line.parse().unwrap(), meta: 0 });
+            }
+    }
+    Ok(datapoints)
 }
