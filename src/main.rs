@@ -1,3 +1,7 @@
+#[macro_use] extern crate log;
+extern crate simplelog;
+use simplelog::{SimpleLogger, LevelFilter, Config};
+
 mod treemap;
 use treemap::{Area,Row,DataPoint,PlotInfo,specs_to_hier,Specific,ColourMode};
 
@@ -45,6 +49,11 @@ fn main() {
     let matches = App::new("zesmap")
                         .version("0.1")
                         .author("Luuk Hendriks")
+                        .arg(Arg::with_name("verbose")
+                            .short("v")
+                            .multiple(true)
+                            .help("Verbose output. Use -vv for debug output")
+                        )
                         .arg(Arg::with_name("prefix-file")
                              .short("p")
                              .long("prefixes")
@@ -160,18 +169,25 @@ fn main() {
                         )
                         .get_matches();
 
-    eprintln!("-- reading input files");
+
+    let _ = match matches.occurrences_of("verbose") {
+                0   => SimpleLogger::init(LevelFilter::Warn, Config::default()),
+                1   => SimpleLogger::init(LevelFilter::Info, Config::default()),
+                2|_ => SimpleLogger::init(LevelFilter::Debug, Config::default()),
+    };
+
+    info!("-- reading input files");
 
     //let mut datapoints: Vec<DataPoint> = Vec::new();
     let now = Instant::now();
     let datapoints = read_datapoints_from_file(matches.value_of("address-file").unwrap(),
                                                 matches.value_of("colour-input").unwrap()).unwrap();
 
-    eprintln!("[TIME] file read: {}.{:.2}s", now.elapsed().as_secs(),  now.elapsed().subsec_nanos() / 1_000_000);
+    info!("file read: {}.{:.2}s", now.elapsed().as_secs(),  now.elapsed().subsec_nanos() / 1_000_000);
 
     let mut table = prefixes_from_file(matches.value_of("prefix-file").unwrap()).unwrap();
 
-    eprintln!("prefixes: {} , addresses: {}", table.iter().count(), datapoints.len());
+    info!("prefixes: {} , addresses: {}", table.iter().count(), datapoints.len());
     let mut prefix_mismatches = 0;
     let mut asn_to_hits: HashMap<String, usize> = HashMap::new();
     for dp in datapoints.into_iter() {
@@ -188,7 +204,7 @@ fn main() {
     
     if prefix_mismatches > 0 {
         let s = format!("Could not match {} addresses", prefix_mismatches).to_string().on_red().bold();
-        eprintln!("{}", s);
+        warn!("{}", s);
     }
 
     // this is also used later on when creating svg/html files
@@ -199,7 +215,7 @@ fn main() {
                     output_dir,
                     Path::new(matches.value_of("address-file").unwrap()).file_name().unwrap().to_str().unwrap(),
         );
-        eprintln!("creating address file {}", address_output_fn);
+        info!("creating address file {}", address_output_fn);
         let mut file = File::create(address_output_fn).unwrap();
         for (_,_,s) in table.iter() {
             for dp in s.datapoints.iter() {
@@ -257,10 +273,10 @@ fn main() {
         }
     }
 
-    eprintln!("maximums (for --scale-max):");
-    eprintln!("max_hits: {}", max_hits);
+    info!("maximums (for --scale-max):");
+    info!("max_hits: {}", max_hits);
     if matches.is_present("scale-max") {
-        eprintln!("overruling max_hits, was {}, now is {}", max_hits, matches.value_of("scale-max").unwrap());
+        warn!("overruling max_hits, was {}, now is {}", max_hits, matches.value_of("scale-max").unwrap());
         max_hits = matches.value_of("scale-max").unwrap().parse::<usize>().unwrap();
     }
 
@@ -272,21 +288,21 @@ fn main() {
         }
     }
 
-    eprintln!("# of specifics: {}", specifics.len());
-    eprintln!("# of specifics with hits: {}", specifics_with_hits);
-    eprintln!("# of ASNs with hits: {}", unique_asns.len());
-    eprintln!("# of hits in all specifics: {}", specifics.iter().fold(0, |sum, s| sum + s.all_hits())  );
+    info!("# of specifics: {}", specifics.len());
+    info!("# of specifics with hits: {}", specifics_with_hits);
+    info!("# of ASNs with hits: {}", unique_asns.len());
+    info!("# of hits in all specifics: {}", specifics.iter().fold(0, |sum, s| sum + s.all_hits())  );
 
     if matches.is_present("filter-threshold-asn") {
         let minimum = value_t!(matches.value_of("filter-threshold-asn"), usize).unwrap_or_else(|_| 0);
-        eprintln!("got --filter-threshold-asns, only plotting ASNs with minimum hits of {}", minimum);
+        warn!("got --filter-threshold-asns, only plotting ASNs with minimum hits of {}", minimum);
         let pre_filter_len_specs = specifics.len();
         specifics.retain(|s| asn_to_hits.get(&s.asn).unwrap_or(&0) >= &minimum);
-        eprintln!("filtered {} specifics, left: {}", pre_filter_len_specs - specifics.len(), specifics.len());
+        warn!("filtered {} specifics, left: {}", pre_filter_len_specs - specifics.len(), specifics.len());
     }
 
     specifics = specs_to_hier(&specifics);
-    eprintln!("# of top-level specifics: {}", specifics.len());
+    info!("# of top-level specifics: {}", specifics.len());
 
     //let mut specifics: Vec<Specific>  = specs_to_hier(&table.into_iter().map(|(_,_,s)| s).collect());
     // without hierarchy: //TODO make this a switch
@@ -305,13 +321,13 @@ fn main() {
         let pre_filter_len_specs = specifics.len();
         //specifics.retain(|s| s.all_hits() >= 1);
         let filter_threshold = value_t!(matches.value_of("filter-threshold"), usize).unwrap_or_else(|_| 1);
-        eprintln!("filter_threshold: {}", filter_threshold);
+        info!("filter_threshold: {}", filter_threshold);
         specifics.retain(|s| s.all_hits() >= filter_threshold);
         total_area = specifics.iter().fold(0, |sum, s|{sum + s.size(unsized_rectangles)});
-        eprintln!("filtered {} empty specifics, left: {}", pre_filter_len_specs - specifics.len(), specifics.len());
+        info!("filtered {} empty specifics, left: {}", pre_filter_len_specs - specifics.len(), specifics.len());
 
     } else {
-        eprintln!("no filtering of empty prefixes");
+        info!("no filtering of empty prefixes");
     }
 
     // this is affected by how we impement the filtering of empty prefixes
@@ -323,7 +339,7 @@ fn main() {
                     output_dir,
                     Path::new(matches.value_of("address-file").unwrap()).file_name().unwrap().to_str().unwrap(),
         );
-        eprintln!("creating prefix file {}", prefix_output_fn);
+        println!("creating prefix file {}", prefix_output_fn);
         let mut file = File::create(prefix_output_fn).unwrap();
         for s in specifics {
             let _ = writeln!(file, "{} {}", s.network, s.asn);
@@ -410,7 +426,7 @@ fn main() {
     }
 
 
-    //eprintln!("-- creating svg");
+    info!("-- creating svg");
 
     let mut groups: Vec<Group> = Vec::new();
     let mut areas_plotted: u64 = 0;
@@ -462,7 +478,7 @@ fn main() {
         plot::legend(&plot_info)
     };
 
-    eprintln!("plotting {} rectangles, limit was {}", areas_plotted, plot_limit);
+    info!("plotting {} rectangles, limit was {}", areas_plotted, plot_limit);
 
     let mut document = Document::new()
                         .set("viewBox", (0, 0, plot::WIDTH + plot::LEGEND_MARGIN_W as f64, plot::HEIGHT))
@@ -475,7 +491,7 @@ fn main() {
     document.append(legend_g);
 
 
-    //eprintln!("-- creating output files");
+    info!("-- creating output files");
 
     let output_fn_sized = if matches.is_present("unsized-rectangles") {
         "unsized"
@@ -499,7 +515,7 @@ fn main() {
 
 
     let output_fn_svg = format!("{}/{}.svg", output_dir, output_fn);
-    eprintln!("creating {}", output_fn_svg);
+    println!("creating {}", output_fn_svg);
     svg::save(&output_fn_svg, &document).unwrap();
 
     if matches.is_present("html-template") {
@@ -519,7 +535,7 @@ fn main() {
         let html = template.replace("__SVG__", &raw_svg);
 
         let output_fn_html = format!("{}.html", output_fn);
-        eprintln!("creating {}", output_fn_html);
+        println!("creating {}", output_fn_html);
         let mut html_file = File::create(output_fn_html).unwrap();
         html_file.write_all(&html.as_bytes()).unwrap();
 

@@ -44,7 +44,7 @@ pub fn prefixes_from_file<'a>(f: &'a str) -> io::Result<IpLookupTable<Ipv6Addr,S
                 table.insert(route.ip(), route.prefix().into(),
                         Specific { network: route, asn: asn.to_string(), datapoints: Vec::new(), specifics: Vec::new()});
         } else {
-                eprintln!("choked on {} while reading prefixes file", line);
+                warn!("choked on {} while reading prefixes file", line);
         }
     }; 
     Ok(table)
