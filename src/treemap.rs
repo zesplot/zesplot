@@ -9,6 +9,7 @@ use svg::Node;
 use svg::node::element::Rectangle;
 
 use std::collections::{HashMap, HashSet};
+use clap::ArgMatches;
 
 #[derive(Debug, Clone)]
 pub struct Specific {
@@ -96,20 +97,7 @@ impl <'a>PlotInfo<'a> {
             asn_colours
         }
     }
-    pub fn set_maxes(&mut self, table: &IpLookupTable<Ipv6Addr,Specific>) {
-        // maximum values to determine colour scale later on, passed via PlotInfo
-        // maximum number of hits in certain prefix
-        //let mut max_hits = 0;
-        // based on DataPoint.meta, e.g. TTL, MSS:
-        //let mut max_dp_avg = 0f64; 
-        //let mut max_dp_median = 0f64; 
-        //let mut max_dp_var = 0f64;
-        //let mut max_dp_uniq = 0_usize;
-        //let mut max_dp_sum = 0_usize;
-        // maximum hamming weight:
-        // do we need var/median etc?
-        //let mut max_hw_avg = 0f64;
-        
+    pub fn set_maxes(&mut self, table: &IpLookupTable<Ipv6Addr,Specific>, matches: &ArgMatches) {
         for (_,_,s) in table.iter() {
             if s.datapoints.len() > self.max_hits {
                 //max_hits = s.datapoints.len();
@@ -136,6 +124,42 @@ impl <'a>PlotInfo<'a> {
                 self.max_hw_avg = s.hw_avg();
             }
         }
+        info!("maximums (for --scale-max):");
+        info!("max_hits: {}", self.max_hits);
+        if matches.is_present("scale-max") {
+            warn!("overruling max_hits, was {}, now is {}", self.max_hits, matches.value_of("scale-max").unwrap());
+            self.max_hits = matches.value_of("scale-max").unwrap().parse::<usize>().unwrap();
+        }
+
+        self.dp_desc = if matches.is_present("legend-label") {
+            matches.value_of("legend-label").unwrap().to_string()
+        } else {
+            match matches.value_of("colour-input").unwrap_or(plot::COLOUR_INPUT) {
+                "ttl"   => "TTL".to_string(),
+                "mss"   => "TCP MSS".to_string(),
+                "dns"   => "DNS RA bit".to_string(),
+                "hw"    => {self.colour_mode = ColourMode::HwAvg;  "Hamming Weight".to_string()},
+                "hits"|_ => "Hits".to_string()
+            }
+        };
+
+        if matches.is_present("dp-function") {
+            self.colour_mode = match matches.value_of("dp-function").unwrap() {
+                "avg" => ColourMode::DpAvg,
+                "median" => ColourMode::DpMedian,
+                "var" => ColourMode::DpVar,
+                "uniq" => ColourMode::DpUniq,
+                "sum" => ColourMode::DpSum,
+                _   =>  ColourMode::Hits,
+            };
+        } else if matches.is_present("asn-colours") {
+            self.colour_mode = ColourMode::Asn;
+        } else if self.dp_desc == "TTL" || self.dp_desc == "TCP MSS" { //ugly..
+            self.colour_mode = ColourMode::DpAvg;
+        }
+
+
+
     }
 }
 

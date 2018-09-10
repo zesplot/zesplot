@@ -5,7 +5,7 @@ extern crate simplelog;
 use simplelog::{SimpleLogger, LevelFilter, Config};
 
 mod treemap;
-use treemap::{Area,Row,DataPoint,PlotInfo,specs_to_hier,Specific,ColourMode};
+use treemap::{Area,Row,DataPoint,PlotInfo,specs_to_hier,Specific};
 
 mod plot;
 
@@ -236,16 +236,8 @@ fn main() {
     }
 
     let mut plot_info = PlotInfo::new(asn_colours);
-    plot_info.set_maxes(&table);
+    plot_info.set_maxes(&table, &matches);
     let unsized_rectangles = matches.is_present("unsized-rectangles");
-
-
-    info!("maximums (for --scale-max):");
-    info!("max_hits: {}", plot_info.max_hits);
-    if matches.is_present("scale-max") {
-        warn!("overruling max_hits, was {}, now is {}", plot_info.max_hits, matches.value_of("scale-max").unwrap());
-        plot_info.max_hits = matches.value_of("scale-max").unwrap().parse::<usize>().unwrap();
-    }
 
     let mut specifics: Vec<Specific>  = table.into_iter().map(|(_,_,s)| s).collect();
     let mut specifics_with_hits = 0;
@@ -328,37 +320,6 @@ fn main() {
         areas.push(Area::new(s.size(unsized_rectangles) as f64 * norm_factor, init_ar, s  ));
     }
 
-
-    let mut colour_mode = ColourMode::Hits;
-    
-    let dp_desc = if matches.is_present("legend-label") {
-        matches.value_of("legend-label").unwrap().to_string()
-    } else {
-        match matches.value_of("colour-input").unwrap_or(plot::COLOUR_INPUT) {
-            "ttl"   => "TTL".to_string(),
-            "mss"   => "TCP MSS".to_string(),
-            "dns"   => "DNS RA bit".to_string(),
-            "hw"    => {colour_mode = ColourMode::HwAvg;  "Hamming Weight".to_string()},
-            "hits"|_ => "Hits".to_string()
-        }
-    };
-
-    if matches.is_present("dp-function") {
-        plot_info.colour_mode = match matches.value_of("dp-function").unwrap() {
-            "avg" => ColourMode::DpAvg,
-            "median" => ColourMode::DpMedian,
-            "var" => ColourMode::DpVar,
-            "uniq" => ColourMode::DpUniq,
-            "sum" => ColourMode::DpSum,
-            _   =>  colour_mode
-        };
-    } else if matches.is_present("asn-colours") {
-        plot_info.colour_mode = ColourMode::Asn;
-    } else if dp_desc == "TTL" || dp_desc == "TCP MSS" { //ugly..
-        plot_info.colour_mode = ColourMode::DpAvg;
-    }
-
-    //let plot_info = PlotInfo{max_hits, max_dp_avg, max_dp_median, max_dp_var, max_dp_uniq, max_dp_sum, max_hw_avg, colour_mode, dp_desc, asn_colours};
 
     let mut rows = Vec::new();
     //let (first_area, remaining_areas) = areas.split_first().unwrap();
