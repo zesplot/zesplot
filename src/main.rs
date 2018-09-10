@@ -179,10 +179,17 @@ fn main() {
 
     info!("-- reading input files");
 
-    //let mut datapoints: Vec<DataPoint> = Vec::new();
+    let mut datapoints: Vec<DataPoint> = Vec::new();
     let now = Instant::now();
-    let datapoints = read_datapoints_from_file(matches.value_of("address-file").unwrap(),
-                                                matches.value_of("colour-input").unwrap()).unwrap();
+    //let datapoints = read_datapoints_from_file(matches.value_of("address-file").unwrap(),
+    //                                            matches.value_of("colour-input").unwrap()).unwrap();
+    //let datapoints;
+    match read_datapoints_from_file(matches.value_of("address-file").unwrap(),
+                                    matches.value_of("colour-input").unwrap()) {
+        Ok(dps) => datapoints = dps,
+        Err(e) => error!("Can not read datapoints from address-file: {}", e),
+    };
+                      
 
     info!("file read: {}.{:.2}s", now.elapsed().as_secs(),  now.elapsed().subsec_nanos() / 1_000_000);
 
