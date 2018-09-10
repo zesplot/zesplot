@@ -30,7 +30,7 @@ use treebitmap::{IpLookupTable};
 // or, simply fetched from http://data.caida.org/datasets/routing/routeviews6-prefix2as/2018/01/
 // awk '{print $1"/"$2, $3}'
 
-pub fn prefixes_from_file<'a>(f: &'a str) -> io::Result<IpLookupTable<Ipv6Addr,Specific>> {
+pub fn prefixes_from_file(f: &str) -> io::Result<IpLookupTable<Ipv6Addr,Specific>> {
     let mut file = File::open(f)?;
     let mut s = String::new();
     file.read_to_string(&mut s)?;
@@ -50,7 +50,7 @@ pub fn prefixes_from_file<'a>(f: &'a str) -> io::Result<IpLookupTable<Ipv6Addr,S
     Ok(table)
 }
 
-pub fn asn_colours_from_file<'a>(f: &'a str) -> io::Result<HashMap<u32, String>> {
+pub fn asn_colours_from_file(f: &str) -> io::Result<HashMap<u32, String>> {
     let mut mapping: HashMap<u32, String> = HashMap::new();
     let mut file = File::open(f)?;
     let mut s = String::new();
@@ -110,7 +110,7 @@ pub fn read_datapoints_from_file<'a, 'b>(f: &'a str, colour_input: &'b str) -> i
                         DataPoint { 
                             ip6: z.saddr.parse().unwrap(),
                             //first bit in byte 4 is RA bit
-                            meta: ((hex::decode(z.data).unwrap()[3] & 0b1000_0000) >> 7) as u32,
+                            meta: u32::from((hex::decode(z.data).unwrap()[3] & 0b1000_0000) >> 7),
                         }
                     );
                 }

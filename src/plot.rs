@@ -91,18 +91,18 @@ pub fn legend(plot_info: &PlotInfo) -> (Definitions, Group) {
     let legend_75; 
     let legend_50; 
     let legend_25; 
-    let legend_0 ;
+    let legend_0 = 1.0;
 
     if legend_100 > 1024.0 {
         legend_75 = 2_f64.powf(786_f64 / norm);
         legend_50 = 2_f64.powf(512_f64 / norm);
         legend_25 = 2_f64.powf(256_f64 / norm);
-        legend_0 = 1.0;
+        //legend_0 = 1.0;
     } else {
         legend_75 = 786_f64 / norm;
         legend_50 = 512_f64 / norm;
         legend_25 = 256_f64 / norm;
-        legend_0 = 1.0;
+        //legend_0 = 1.0;
     }
 
     let mut legend_label_100 = Text::new()

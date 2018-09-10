@@ -73,27 +73,30 @@ pub struct PlotInfo<'a> {
     pub asn_colours: &'a HashMap<u32, String>
 }
 
-pub fn var(s: &Vec<u32>) -> f64 {
+pub fn var(s: &[u32]) -> f64 {
     if s.len() < 2 {
         return 0.0;
     }
     let sum: u32 = s.iter().sum();
-    let mean = sum as f64 / s.len() as f64;
-    let var = s.iter().fold(0.0, |var, dp| var as f64 + (*dp as f64 - mean).powf(2.0) ) / (s.len() -1) as f64;
-    var
+    let mean = f64::from(sum) / s.len() as f64;
+    //let var = s.iter().fold(0.0, |var, dp| var as f64 + (*dp as f64 - mean).powf(2.0) ) / (s.len() -1) as f64;
+    //var
+    s.iter().fold(0.0, |var, dp| var as f64 + (f64::from(*dp) - mean).powf(2.0) ) / (s.len() -1) as f64
 }
 
 
-pub fn median(s: &Vec<u32>) -> f64 {
-    if s.len() == 0 {
+pub fn median(s: &[u32]) -> f64 {
+    if s.is_empty() {
         return 0.0;
     }
-    let mut sorted = s.clone();
+    let mut sorted = s.to_owned();
     sorted.sort();
     if sorted.len() % 2  == 0 {
-        ((*sorted.get(sorted.len() / 2).unwrap() as f64 + *sorted.get(sorted.len() / 2 - 1).unwrap() as f64) / 2.0) as f64
+        //((*sorted.get(sorted.len() / 2).unwrap() as f64 + *sorted.get(sorted.len() / 2 - 1).unwrap() as f64) / 2.0) as f64
+        ((f64::from(sorted[sorted.len() / 2]) + f64::from(sorted[sorted.len() / 2 - 1])) / 2.0) as f64
     } else {
-        *sorted.get(sorted.len() / 2).unwrap() as f64
+        //*sorted.get(sorted.len() / 2).unwrap() as f64
+        f64::from(sorted[sorted.len() / 2])
     }
 }
 
@@ -105,15 +108,15 @@ impl Specific {
 
     pub fn dp_avg(&self) -> f64 {
         let sum = self.datapoints.iter().fold(0, |s, i| s + i.meta);
-        sum as f64 / self.datapoints.len() as f64
+        f64::from(sum) / self.datapoints.len() as f64
     }
 
     pub fn dp_var(&self) -> f64 {
-        var(&self.datapoints.iter().map(|dp| dp.meta).collect())
+        var(&self.datapoints.iter().map(|dp| dp.meta).collect::<Vec<u32>>().as_slice())
     }
 
     pub fn dp_median(&self) -> f64 {
-        median(&self.datapoints.iter().map(|dp| dp.meta).collect())
+        median(&self.datapoints.iter().map(|dp| dp.meta).collect::<Vec<u32>>().as_slice())
     }
 
     pub fn dp_uniq(&self) -> usize {
@@ -121,8 +124,7 @@ impl Specific {
         for dp in &self.datapoints {
             uniq_meta.insert(dp.meta);
         }
-        let hash_len = uniq_meta.len();
-        hash_len
+        uniq_meta.len()
     }
 
     pub fn dp_sum(&self) -> usize {
@@ -131,7 +133,7 @@ impl Specific {
 
     pub fn hw_avg(&self) -> f64 {
         let sum = self.datapoints.iter().fold(0, |s, i| s + i.hamming_weight(self.prefix_len()));
-        sum as f64 / self.datapoints.len() as f64
+        f64::from(sum) / self.datapoints.len() as f64
     }
 
     #[allow(dead_code)]
@@ -143,7 +145,7 @@ impl Specific {
 
     
     pub fn all_hits(&self) -> usize {
-        &self.hits() + &self.hits_in_specifics()
+        self.hits() + self.hits_in_specifics()
     }
 
     pub fn hits(&self) -> usize {
@@ -161,7 +163,7 @@ impl Specific {
 
     pub fn size(&self, unsized_rectangles: bool) -> u128 {
         if unsized_rectangles {
-            return 1u128
+            1u128
         } else {
             self.__size()
         }
@@ -170,7 +172,7 @@ impl Specific {
     pub fn __size(&self) -> u128 {
         // while 2^ is more accurate, 1.2^ results in more readable plots
         // possibly parametrize this
-        1.2_f64.powf(128.0 - self.network.prefix() as f64) as u128
+        1.2_f64.powf(128.0 - f64::from(self.network.prefix())) as u128
     }
     
     pub fn prefix_len(&self) -> u8 {
@@ -189,6 +191,7 @@ impl Specific {
         }
     }
 
+#[allow(clippy::too_many_arguments)]
     pub fn to_rect(&self, x: f64, y: f64, w: f64, h: f64, w_factor: f64, h_factor: f64, plot_info: &PlotInfo) -> super::Rectangle {
         let mut r = super::Rectangle::new()
             .set("x", x)
@@ -271,8 +274,9 @@ impl Specific {
 
     }
 
+#[allow(clippy::too_many_arguments)]
     pub fn rects_in_specifics(&self, x: f64, y: f64, w: f64, h: f64, w_factor: f64, h_factor: f64, plot_info: &PlotInfo) -> Vec<super::Rectangle> {
-        if self.specifics.len() == 0 {
+        if self.specifics.is_empty() {
             return vec![]
         }
         let w_factor  = w_factor / self.specifics.len() as f64;
@@ -296,19 +300,18 @@ impl Specific {
 }
 
 
-pub fn specs_to_hier_with_rest_index(specifics: &Vec<Specific>, index: usize) -> (Vec<Specific>, usize) {
+//pub fn specs_to_hier_with_rest_index(specifics: &Vec<Specific>, index: usize) -> (Vec<Specific>, usize) {
+pub fn specs_to_hier_with_rest_index(specifics: &[Specific], index: usize) -> (Vec<Specific>, usize) {
     let current_specific: &Specific;
     if let Some((first, rest)) = specifics[index..].split_first() {
         current_specific = first;
-        if rest.len() == 0 {
+        if rest.is_empty() {
             //println!("NO REST, returning {}", first.network.ip());
             return (vec![first.clone()], 1);
         }
 
-        //println!("first : {:?}", first.network);
         let mut nested_specs: Vec<Specific> = Vec::new();
         let mut consumed_specs = 1;
-        //for (_, s) in rest.iter().enumerate() {
         for s in rest.iter() {
             if current_specific.network.contains(s.network.ip()) {
                 //println!("  in current: {}", s.network.ip());
@@ -331,26 +334,28 @@ pub fn specs_to_hier_with_rest_index(specifics: &Vec<Specific>, index: usize) ->
     (vec![], 0)
 }
 
-pub fn specs_to_hier(specifics: &Vec<Specific>) -> Vec<Specific> {
+//pub fn specs_to_hier(specifics: &Vec<Specific>) -> Vec<Specific> {
+pub fn specs_to_hier(specifics: &[Specific]) -> Vec<Specific> {
     let mut done = false;
     let mut all_results: Vec<Specific> = vec![];
     let mut start_from = 0;
     
-    if specifics.len() == 0 {
+    if specifics.is_empty() {
         return vec![];
     }
     
     if specifics.len() == 1 {
-        return specifics.clone();
+        //return specifics.clone();
+        return specifics.to_owned();
     }
     
     while !done {
         let (mut result, num_consumed) = specs_to_hier_with_rest_index(&specifics, start_from);
-        if result.len() == 0 && num_consumed  == 0 {
+        if result.is_empty() && num_consumed  == 0 {
             done = true;
         }
         start_from += num_consumed;
-        if specifics.len() == start_from + 0 {
+        if specifics.len() == start_from {
             done = true;
         }
         all_results.append(&mut result);
@@ -384,10 +389,10 @@ impl Area {
         Area { x: 0.0, y: 0.0, w, h, surface, specific }
     }
     pub fn get_ratio(&self) -> f64 {
-        if &self.h >= &self.w {
-            &self.w  / &self.h
+        if self.h >= self.w {
+            self.w  / self.h
         } else {
-            &self.h / &self.w
+            self.h / self.w
         }
     }
 }
@@ -409,7 +414,7 @@ impl Row {
 
     pub fn try(&mut self, area: Area) -> Option<Area> {
         let cur_worst = self.calc_worst();
-        &self.push(area);
+        self.push(area);
 
         if self.calc_worst() >= cur_worst {
             None
@@ -458,7 +463,7 @@ impl Row {
             area.y = self.y;
         }
 
-        &self.areas.push(area);
+        self.areas.push(area);
         self.reflow();
     }
 
@@ -489,14 +494,14 @@ fn colour(i: u32, max: u32) -> String {
         return "#eeeeee".to_string();
     }
 
-    let mut scale: Vec<u32> = (0..0xff+1).map(|e| 0xff | (e << 8)).collect();
-    scale.append(&mut (0..0xff+1).rev().map(|e| (0xff << 8) | e).collect::<Vec<u32>>() );
-    scale.append(&mut (0..0xff+1).map(|e| 0xff00 | (e << 16) | e).collect::<Vec<u32>>() );
-    scale.append(&mut (0..0xff+1).rev().map(|e| 0xff0000 | (e << 8)).collect::<Vec<u32>>() );
+    let mut scale: Vec<u32> = (0..=0xff).map(|e| 0xff | (e << 8)).collect();
+    scale.append(&mut (0..=0xff).rev().map(|e| (0xff << 8) | e).collect::<Vec<u32>>() );
+    scale.append(&mut (0..=0xff).map(|e| 0xff00 | (e << 16) | e).collect::<Vec<u32>>() );
+    scale.append(&mut (0..=0xff).rev().map(|e| 0x00ff_0000 | (e << 8)).collect::<Vec<u32>>() );
 
     if max > 1024 {
-        let norm = scale.len() as f64 / (max as f64).log2();
-        let mut index = ((i as f64).log2() * norm) as usize;
+        let norm = scale.len() as f64 / (f64::from(max)).log2();
+        let mut index = (f64::from(i).log2() * norm) as usize;
         //FIXME: this should not be necessary..
         if index >= scale.len() {
             index = scale.len() - 1;
@@ -504,10 +509,10 @@ fn colour(i: u32, max: u32) -> String {
         if index == 0 {
             index = 1;
         }
-        format!("#{:06x}", scale.get(index).unwrap())
+        format!("#{:06x}", &scale[index])
     } else {
-        let norm = scale.len() as f64 / (max as f64);
-        let mut index = ((i as f64) * norm) as usize;
+        let norm = scale.len() as f64 / f64::from(max);
+        let mut index = (f64::from(i) * norm) as usize;
         //FIXME: this should not be necessary..
         if index >= scale.len() {
             index = scale.len() - 1;
@@ -515,7 +520,7 @@ fn colour(i: u32, max: u32) -> String {
         if index == 0 {
             index = 1;
         }
-        format!("#{:06x}", scale.get(index).unwrap())
+        format!("#{:06x}", &scale[index])
     }
 }
 

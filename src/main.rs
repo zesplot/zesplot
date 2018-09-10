@@ -1,3 +1,5 @@
+#![feature(tool_lints)] // clippy
+
 #[macro_use] extern crate log;
 extern crate simplelog;
 use simplelog::{SimpleLogger, LevelFilter, Config};
@@ -38,16 +40,13 @@ use svg::*;
 use svg::node::Text as Tekst;
 use svg::node::element::{Rectangle, Text, Group};
 
-use std::io::{BufReader};
 use std::io::prelude::*;
 use std::fs::File;
 use std::path::Path;
 
-use std::error::Error;
-
 fn main() {
 
-    let matches = App::new("zesmap")
+    let matches = App::new("zesplot")
                         .version("0.1")
                         .author("Luuk Hendriks")
                         .arg(Arg::with_name("verbose")
@@ -143,30 +142,30 @@ fn main() {
                         )
                         .arg(Arg::with_name("no-labels")
                              .long("no-labels")
-                             .help(&format!("Omit the text labels in the final plot"))
+                             .help("Omit the text labels in the final plot")
                         )
                         .arg(Arg::with_name("html-template")
                              .long("html")
-                             .help(&format!("Create HTML wrapper based on passed template"))
+                             .help("Create HTML wrapper based on passed template")
                              .takes_value(true)
                         )
                         .arg(Arg::with_name("output-fn")
                              .long("output-fn")
-                             .help(&format!("Override the generated output filenames. File extensions (.svg, .html) will be appended."))
+                             .help("Override the generated output filenames. File extensions (.svg, .html) will be appended.")
                              .takes_value(true)
                         )
                         .arg(Arg::with_name("output-dir")
                              .long("output-dir")
-                             .help(&format!("Specific where to save generated files. Default is current working dir."))
+                             .help("Specific where to save generated files. Default is current working dir.")
                              .takes_value(true)
                         )
                         .arg(Arg::with_name("create-prefixes")
                              .long("create-prefixes")
-                             .help(&format!("Create file containing prefixes based on hits from address-file, and exit"))
+                             .help("Create file containing prefixes based on hits from address-file, and exit")
                         )
                         .arg(Arg::with_name("create-addresses")
                              .long("create-addresses")
-                             .help(&format!("Create file containing addresses based on hits from address-file, and exit"))
+                             .help("Create file containing addresses based on hits from address-file, and exit")
                         )
                         .get_matches();
 
@@ -191,7 +190,7 @@ fn main() {
     };
                       
 
-    info!("file read: {}.{:.2}s", now.elapsed().as_secs(),  now.elapsed().subsec_nanos() / 1_000_000);
+    info!("file read: {}.{:.2}s", now.elapsed().as_secs(), now.elapsed().subsec_millis());
 
     let mut table = prefixes_from_file(matches.value_of("prefix-file").unwrap()).unwrap();
 
@@ -407,7 +406,6 @@ fn main() {
     let first_area = areas.pop().unwrap();
     let (mut new_row_x, mut new_row_y) = (0.0, 0.0);
     rows.push(Row::new(new_row_x, new_row_y, true, first_area));
-    let mut i = 0;
 
     for a in remaining_areas {
 
@@ -428,8 +426,6 @@ fn main() {
             }
             rows.last_mut().unwrap().reflow();
         }
-
-        i = i + 1;
     }
 
 
@@ -457,19 +453,17 @@ fn main() {
 
 
 
-            if !matches.is_present("no-labels") {
-                if area.w > 0.5 {
-                    let mut label = Text::new()
-                        .set("class", "label")
-                        .set("x", area.x + area.w/2.0)
-                        .set("y", area.y + area.h/2.0)
-                        .set("font-family", "mono")
-                        .set("font-size", format!("{}%", area.w.min(area.h))) // == f64::min
-                        .set("text-anchor", "middle");
-                        label.append(Tekst::new(area.specific.to_string()))
-                        ;
-                    group.append(label);
-                }
+            if !matches.is_present("no-labels") && area.w > 0.5 {
+                let mut label = Text::new()
+                    .set("class", "label")
+                    .set("x", area.x + area.w/2.0)
+                    .set("y", area.y + area.h/2.0)
+                    .set("font-family", "mono")
+                    .set("font-size", format!("{}%", area.w.min(area.h))) // == f64::min
+                    .set("text-anchor", "middle");
+                    label.append(Tekst::new(area.specific.to_string()))
+                    ;
+                group.append(label);
             }
             groups.push(group);
 
