@@ -10,9 +10,6 @@ mod plot;
 use std::collections::HashSet;
 use std::collections::HashMap;
 
-extern crate colored;
-use colored::*;
-
 extern crate easy_csv;
 #[macro_use] extern crate easy_csv_derive;
 extern crate csv;
@@ -21,7 +18,9 @@ extern crate hex;
 extern crate treebitmap;
 
 mod input;
-use input::*; //::{prefixes_from_file, asn_colours_from_file};
+use input::*;
+
+mod output;
 
 
 use std::time::{Instant};
@@ -43,6 +42,8 @@ use std::io::{BufReader};
 use std::io::prelude::*;
 use std::fs::File;
 use std::path::Path;
+
+use std::error::Error;
 
 fn main() {
 
@@ -203,8 +204,7 @@ fn main() {
     let unique_asns: HashSet<String> = asn_to_hits.keys().cloned().collect();
     
     if prefix_mismatches > 0 {
-        let s = format!("Could not match {} addresses", prefix_mismatches).to_string().on_red().bold();
-        warn!("{}", s);
+        warn!("Could not match {} addresses", prefix_mismatches);
     }
 
     // this is also used later on when creating svg/html files
@@ -493,55 +493,17 @@ fn main() {
 
     info!("-- creating output files");
 
-    let output_fn_sized = if matches.is_present("unsized-rectangles") {
-        "unsized"
-    } else {
-        "sized"
-    };
-    let output_fn_filtered = if matches.is_present("filter-empty-prefixes") {
-        format!("filtered.ft{}", matches.value_of("filter-threshold").unwrap_or("1"))
-    } else {
-        "unfiltered".to_string()
-    };
-    let output_fn = if matches.is_present("output-fn") {
-        matches.value_of("output-fn").unwrap().to_string()
-    } else {
-        format!("{}.{}.{}.{}", Path::new(matches.value_of("address-file").unwrap()).file_name().unwrap().to_str().unwrap(),
-            matches.value_of("colour-input").unwrap_or(plot::COLOUR_INPUT),
-            output_fn_sized,
-            output_fn_filtered
-            )
-    };
 
-
-    let output_fn_svg = format!("{}/{}.svg", output_dir, output_fn);
-    println!("creating {}", output_fn_svg);
-    svg::save(&output_fn_svg, &document).unwrap();
+    match output::create_svg(&matches, &document, output_dir) {
+        Ok(f) => info!("created {}", f),
+        Err(e) => error!("error while creating svg file: {}", e),
+    }
 
     if matches.is_present("html-template") {
-
-        svg::save("image.svg", &document).unwrap();
-        let mut raw_svg = String::new();
-        BufReader::new(
-            File::open("image.svg").unwrap()
-        ).read_to_string(&mut raw_svg).unwrap();
-
-        let mut template = String::new();
-        let template_fn = matches.value_of("html-template").unwrap();
-        BufReader::new(
-            File::open(template_fn).unwrap()
-        ).read_to_string(&mut template).unwrap();
-
-        let html = template.replace("__SVG__", &raw_svg);
-
-        let output_fn_html = format!("{}.html", output_fn);
-        println!("creating {}", output_fn_html);
-        let mut html_file = File::create(output_fn_html).unwrap();
-        html_file.write_all(&html.as_bytes()).unwrap();
-
-        // create a file with a static name for easy experimenting with parameters
-        let mut html_file = File::create("index.html").unwrap();
-        html_file.write_all(&html.as_bytes()).unwrap();
+        match output::create_html(&matches, &document, output_dir) {
+            Ok(f) => info!("created {}", f),
+            Err(e) => error!("error while creating HTML file: {}", e),
+        }
     }
 
 }
