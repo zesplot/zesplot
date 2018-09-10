@@ -21,6 +21,11 @@ pub struct DataPoint {
     pub meta: u32, // meta value, e.g. TTL, MSS
 }
 
+#[derive(Copy,Clone)]
+pub struct Turtle {
+    x: f64, y: f64, w: f64, h: f64
+}
+
 impl DataPoint {
     fn hamming_weight(&self, prefix_len: u8) -> u32 {
         (u128::from(self.ip6) << prefix_len  >> prefix_len).count_ones()
@@ -191,8 +196,10 @@ impl Specific {
         }
     }
 
-#[allow(clippy::too_many_arguments)]
-    pub fn to_rect(&self, x: f64, y: f64, w: f64, h: f64, w_factor: f64, h_factor: f64, plot_info: &PlotInfo) -> super::Rectangle {
+//#[allow(clippy::too_many_arguments)]
+    //pub fn to_rect(&self, x: f64, y: f64, w: f64, h: f64, w_factor: f64, h_factor: f64, plot_info: &PlotInfo) -> super::Rectangle {
+    pub fn to_rect(&self, t: Turtle, w_factor: f64, h_factor: f64, plot_info: &PlotInfo) -> super::Rectangle {
+        let Turtle {x, y, w, h} = t;
         let mut r = super::Rectangle::new()
             .set("x", x)
             .set("y", y)
@@ -274,27 +281,30 @@ impl Specific {
 
     }
 
-#[allow(clippy::too_many_arguments)]
-    pub fn rects_in_specifics(&self, x: f64, y: f64, w: f64, h: f64, w_factor: f64, h_factor: f64, plot_info: &PlotInfo) -> Vec<super::Rectangle> {
+//#[allow(clippy::too_many_arguments)]
+    //pub fn rects_in_specifics(&self, x: f64, y: f64, w: f64, h: f64, w_factor: f64, h_factor: f64, plot_info: &PlotInfo) -> Vec<super::Rectangle> {
+    pub fn rects_in_specifics(&self, t: Turtle, w_factor: f64, h_factor: f64, plot_info: &PlotInfo) -> Vec<super::Rectangle> {
         if self.specifics.is_empty() {
             return vec![]
         }
+        let Turtle {x, y, w, h} = t;
         let w_factor  = w_factor / self.specifics.len() as f64;
         let mut results = Vec::new();
         let mut x = x;
         for s in &self.specifics {
-            results.push(s.to_rect(x, y, w, h, w_factor, h_factor, plot_info));
-            let sub_w_factor  = w_factor; // / 1.0 / s.specifics.len() as f64;
-            results.append(&mut s.rects_in_specifics(x, y, w, h, sub_w_factor, h_factor / 2.0, plot_info));
-            x += w * w_factor; // * self.specifics.len() as f64;
+            results.push(s.to_rect(Turtle{x, y, w, h}, w_factor, h_factor, plot_info));
+            let sub_w_factor  = w_factor; 
+            results.append(&mut s.rects_in_specifics(Turtle{x, y, w, h}, sub_w_factor, h_factor / 2.0, plot_info));
+            x += w * w_factor; 
         }
 
     results
     }
 
     pub fn all_rects(&self, area: &Area, plot_info: &PlotInfo) -> Vec<super::Rectangle> {
-        let mut result = vec![self.to_rect(area.x, area.y, area.w, area.h, 1.0, 1.0, plot_info)];
-        result.append(&mut self.rects_in_specifics(area.x, area.y, area.w, area.h, 1.0, 0.5, plot_info));
+        let t = Turtle {x: area.x, y: area.y, w: area.w, h: area.h};
+        let mut result = vec![self.to_rect(t, 1.0, 1.0, plot_info)];
+        result.append(&mut self.rects_in_specifics(t, 1.0, 0.5, plot_info));
         result
     }
 }

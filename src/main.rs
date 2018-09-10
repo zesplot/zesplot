@@ -1,4 +1,4 @@
-#![feature(tool_lints)] // clippy
+//#![feature(tool_lints)] // clippy
 
 #[macro_use] extern crate log;
 extern crate simplelog;
