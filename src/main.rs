@@ -303,7 +303,7 @@ fn main() {
         let minimum = value_t!(matches.value_of("filter-threshold-asn"), usize).unwrap_or_else(|_| 0);
         warn!("got --filter-threshold-asns, only plotting ASNs with minimum hits of {}", minimum);
         let pre_filter_len_specs = specifics.len();
-        specifics.retain(|s| asn_to_hits.get(&s.asn).unwrap_or(&0) >= &minimum);
+        specifics.retain(|s| *asn_to_hits.get(&s.asn).unwrap_or(&0) >= minimum);
         warn!("filtered {} specifics, left: {}", pre_filter_len_specs - specifics.len(), specifics.len());
     }
 
