@@ -3,7 +3,10 @@ use plot;
 use ipnetwork::Ipv6Network;
 use std::net::Ipv6Addr;
 
+use treebitmap::{IpLookupTable};
+
 use svg::Node;
+use svg::node::element::Rectangle;
 
 use std::collections::{HashMap, HashSet};
 
@@ -76,6 +79,64 @@ pub struct PlotInfo<'a> {
     pub colour_mode: ColourMode,
     pub dp_desc: String,
     pub asn_colours: &'a HashMap<u32, String>
+}
+
+impl <'a>PlotInfo<'a> {
+    pub fn new(asn_colours: &'a HashMap<u32, String>) -> PlotInfo<'a> {
+        PlotInfo { 
+            max_hits: 0,
+            max_dp_avg: 0f64,
+            max_dp_median: 0f64,
+            max_dp_var: 0f64,
+            max_dp_uniq: 0,
+            max_dp_sum: 0,
+            max_hw_avg: 0f64,
+            colour_mode: ColourMode::Hits,
+            dp_desc: "".to_string(),
+            asn_colours
+        }
+    }
+    pub fn set_maxes(&mut self, table: &IpLookupTable<Ipv6Addr,Specific>) {
+        // maximum values to determine colour scale later on, passed via PlotInfo
+        // maximum number of hits in certain prefix
+        //let mut max_hits = 0;
+        // based on DataPoint.meta, e.g. TTL, MSS:
+        //let mut max_dp_avg = 0f64; 
+        //let mut max_dp_median = 0f64; 
+        //let mut max_dp_var = 0f64;
+        //let mut max_dp_uniq = 0_usize;
+        //let mut max_dp_sum = 0_usize;
+        // maximum hamming weight:
+        // do we need var/median etc?
+        //let mut max_hw_avg = 0f64;
+        
+        for (_,_,s) in table.iter() {
+            if s.datapoints.len() > self.max_hits {
+                //max_hits = s.datapoints.len();
+                self.max_hits = s.datapoints.len();
+            }
+            // based on dp.meta:
+            if s.dp_avg() > self.max_dp_avg {
+                self.max_dp_avg = s.dp_avg();
+            }
+            if s.dp_median() > self.max_dp_median {
+                self.max_dp_median = s.dp_median();
+            }
+            if s.dp_var() > self.max_dp_var {
+                self.max_dp_var = s.dp_var();
+            }
+            if s.dp_uniq() > self.max_dp_uniq {
+                self.max_dp_uniq = s.dp_uniq();
+            }
+            if s.dp_sum() > self.max_dp_sum {
+                self.max_dp_sum = s.dp_sum();
+            }
+            // hamming weight:
+            if s.hw_avg() > self.max_hw_avg {
+                self.max_hw_avg = s.hw_avg();
+            }
+        }
+    }
 }
 
 pub fn var(s: &[u32]) -> f64 {
@@ -198,9 +259,9 @@ impl Specific {
 
 //#[allow(clippy::too_many_arguments)]
     //pub fn to_rect(&self, x: f64, y: f64, w: f64, h: f64, w_factor: f64, h_factor: f64, plot_info: &PlotInfo) -> super::Rectangle {
-    pub fn to_rect(&self, t: Turtle, w_factor: f64, h_factor: f64, plot_info: &PlotInfo) -> super::Rectangle {
+    pub fn to_rect(&self, t: Turtle, w_factor: f64, h_factor: f64, plot_info: &PlotInfo) -> Rectangle {
         let Turtle {x, y, w, h} = t;
-        let mut r = super::Rectangle::new()
+        let mut r = Rectangle::new()
             .set("x", x)
             .set("y", y)
             .set("width", w * w_factor)
@@ -283,7 +344,7 @@ impl Specific {
 
 //#[allow(clippy::too_many_arguments)]
     //pub fn rects_in_specifics(&self, x: f64, y: f64, w: f64, h: f64, w_factor: f64, h_factor: f64, plot_info: &PlotInfo) -> Vec<super::Rectangle> {
-    pub fn rects_in_specifics(&self, t: Turtle, w_factor: f64, h_factor: f64, plot_info: &PlotInfo) -> Vec<super::Rectangle> {
+    pub fn rects_in_specifics(&self, t: Turtle, w_factor: f64, h_factor: f64, plot_info: &PlotInfo) -> Vec<Rectangle> {
         if self.specifics.is_empty() {
             return vec![]
         }
@@ -301,7 +362,7 @@ impl Specific {
     results
     }
 
-    pub fn all_rects(&self, area: &Area, plot_info: &PlotInfo) -> Vec<super::Rectangle> {
+    pub fn all_rects(&self, area: &Area, plot_info: &PlotInfo) -> Vec<Rectangle> {
         let t = Turtle {x: area.x, y: area.y, w: area.w, h: area.h};
         let mut result = vec![self.to_rect(t, 1.0, 1.0, plot_info)];
         result.append(&mut self.rects_in_specifics(t, 1.0, 0.5, plot_info));

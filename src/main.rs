@@ -36,9 +36,6 @@ extern crate rand;
 
 use clap::{Arg, App};
 
-use svg::*;
-use svg::node::Text as Tekst;
-use svg::node::element::{Rectangle, Text, Group};
 
 use std::io::prelude::*;
 use std::fs::File;
@@ -238,52 +235,16 @@ fn main() {
         *asn_colours = asn_colours_from_file(matches.value_of("asn-colours").unwrap()).unwrap();
     }
 
-
-    // maximum values to determine colour scale later on, passed via PlotInfo
-    // maximum number of hits in certain prefix
-    let mut max_hits = 0;
-    // based on DataPoint.meta, e.g. TTL, MSS:
-    let mut max_dp_avg = 0f64; 
-    let mut max_dp_median = 0f64; 
-    let mut max_dp_var = 0f64;
-    let mut max_dp_uniq = 0_usize;
-    let mut max_dp_sum = 0_usize;
-    // maximum hamming weight:
-    // do we need var/median etc?
-    let mut max_hw_avg = 0f64;
+    let mut plot_info = PlotInfo::new(asn_colours);
+    plot_info.set_maxes(&table);
     let unsized_rectangles = matches.is_present("unsized-rectangles");
-    
-    for (_,_,s) in table.iter() {
-        if s.datapoints.len() > max_hits {
-            max_hits = s.datapoints.len();
-        }
-        // based on dp.meta:
-        if s.dp_avg() > max_dp_avg {
-            max_dp_avg = s.dp_avg();
-        }
-        if s.dp_median() > max_dp_median {
-            max_dp_median = s.dp_median();
-        }
-        if s.dp_var() > max_dp_var {
-            max_dp_var = s.dp_var();
-        }
-        if s.dp_uniq() > max_dp_uniq {
-            max_dp_uniq = s.dp_uniq();
-        }
-        if s.dp_sum() > max_dp_sum {
-            max_dp_sum = s.dp_sum();
-        }
-        // hamming weight:
-        if s.hw_avg() > max_hw_avg {
-            max_hw_avg = s.hw_avg();
-        }
-    }
+
 
     info!("maximums (for --scale-max):");
-    info!("max_hits: {}", max_hits);
+    info!("max_hits: {}", plot_info.max_hits);
     if matches.is_present("scale-max") {
-        warn!("overruling max_hits, was {}, now is {}", max_hits, matches.value_of("scale-max").unwrap());
-        max_hits = matches.value_of("scale-max").unwrap().parse::<usize>().unwrap();
+        warn!("overruling max_hits, was {}, now is {}", plot_info.max_hits, matches.value_of("scale-max").unwrap());
+        plot_info.max_hits = matches.value_of("scale-max").unwrap().parse::<usize>().unwrap();
     }
 
     let mut specifics: Vec<Specific>  = table.into_iter().map(|(_,_,s)| s).collect();
@@ -383,7 +344,7 @@ fn main() {
     };
 
     if matches.is_present("dp-function") {
-        colour_mode = match matches.value_of("dp-function").unwrap() {
+        plot_info.colour_mode = match matches.value_of("dp-function").unwrap() {
             "avg" => ColourMode::DpAvg,
             "median" => ColourMode::DpMedian,
             "var" => ColourMode::DpVar,
@@ -392,12 +353,12 @@ fn main() {
             _   =>  colour_mode
         };
     } else if matches.is_present("asn-colours") {
-        colour_mode = ColourMode::Asn;
+        plot_info.colour_mode = ColourMode::Asn;
     } else if dp_desc == "TTL" || dp_desc == "TCP MSS" { //ugly..
-        colour_mode = ColourMode::DpAvg;
+        plot_info.colour_mode = ColourMode::DpAvg;
     }
 
-    let plot_info = PlotInfo{max_hits, max_dp_avg, max_dp_median, max_dp_var, max_dp_uniq, max_dp_sum, max_hw_avg, colour_mode, dp_desc, asn_colours};
+    //let plot_info = PlotInfo{max_hits, max_dp_avg, max_dp_median, max_dp_var, max_dp_uniq, max_dp_sum, max_hw_avg, colour_mode, dp_desc, asn_colours};
 
     let mut rows = Vec::new();
     //let (first_area, remaining_areas) = areas.split_first().unwrap();
@@ -429,72 +390,10 @@ fn main() {
     }
 
 
-    info!("-- creating svg");
-
-    let mut groups: Vec<Group> = Vec::new();
-    let mut areas_plotted: u64 = 0;
-
-    let plot_limit = value_t!(matches, "plot-limit", u64).unwrap_or(plot::PLOT_LIMIT);
-    for row in rows {
-        
-        if plot_limit > 0 && areas_plotted >= plot_limit {
-            break;
-        }
-
-        for area in row.areas {
-            let mut group = Group::new()
-                //.set("data-something", area.specific.asn.to_string())
-                ;
-
-            let sub_rects = area.specific.all_rects(&area, &plot_info);
-            for sub_rect in sub_rects {
-                group.append(sub_rect);
-            }
-
-
-
-            if !matches.is_present("no-labels") && area.w > 0.5 {
-                let mut label = Text::new()
-                    .set("class", "label")
-                    .set("x", area.x + area.w/2.0)
-                    .set("y", area.y + area.h/2.0)
-                    .set("font-family", "mono")
-                    .set("font-size", format!("{}%", area.w.min(area.h))) // == f64::min
-                    .set("text-anchor", "middle");
-                    label.append(Tekst::new(area.specific.to_string()))
-                    ;
-                group.append(label);
-            }
-            groups.push(group);
-
-
-
-            areas_plotted += 1;
-        }
-    }
-
-    let (defs, legend_g) = if matches.is_present("asn-colours") {
-        plot::legend_discrete(&plot_info)
-    } else {
-        plot::legend(&plot_info)
-    };
-
-    info!("plotting {} rectangles, limit was {}", areas_plotted, plot_limit);
-
-    let mut document = Document::new()
-                        .set("viewBox", (0, 0, plot::WIDTH + plot::LEGEND_MARGIN_W as f64, plot::HEIGHT))
-                        .set("id", "treeplot")
-                        ;
-    for g in groups {
-        document.append(g);
-    }
-    document.append(defs);
-    document.append(legend_g);
-
+    info!("-- drawing svg");
+    let document = plot::draw_svg(&matches, rows, &plot_info);
 
     info!("-- creating output files");
-
-
     match output::create_svg(&matches, &document, output_dir) {
         Ok(f) => info!("created {}", f),
         Err(e) => error!("error while creating svg file: {}", e),
@@ -508,3 +407,5 @@ fn main() {
     }
 
 }
+
+

@@ -1,9 +1,10 @@
 extern crate svg;
-use svg::Node;
+use svg::{Document, Node};
 use svg::node::element::{Rectangle, Text, Group, Definitions, LinearGradient, Stop};
 use svg::node::Text as Tekst;
 
-use treemap::{PlotInfo,ColourMode};
+use clap::ArgMatches;
+use treemap::{PlotInfo,ColourMode,Row};
 
 pub const WIDTH: f64 = 160.0;
 pub const HEIGHT: f64 = 100.0;
@@ -21,6 +22,70 @@ const TICK_FONT_SIZE: &str = "40%";
 pub const LEGEND_MARGIN_W: f64 = LEGEND_GRADIENT_WIDTH + 2.0*LEGEND_GRADIENT_MARGIN + 20.0;
 
 
+
+pub fn draw_svg(matches: &ArgMatches, rows: Vec<Row>, plot_info: &PlotInfo) -> svg::Document {
+    let mut groups: Vec<Group> = Vec::new();
+    let mut areas_plotted: u64 = 0;
+
+    let plot_limit = value_t!(matches, "plot-limit", u64).unwrap_or(PLOT_LIMIT);
+    for row in rows {
+        
+        if plot_limit > 0 && areas_plotted >= plot_limit {
+            break;
+        }
+
+        for area in row.areas {
+            let mut group = Group::new()
+                //.set("data-something", area.specific.asn.to_string())
+                ;
+
+            let sub_rects = area.specific.all_rects(&area, &plot_info);
+            for sub_rect in sub_rects {
+                group.append(sub_rect);
+            }
+
+
+
+            if !matches.is_present("no-labels") && area.w > 0.5 {
+                let mut label = Text::new()
+                    .set("class", "label")
+                    .set("x", area.x + area.w/2.0)
+                    .set("y", area.y + area.h/2.0)
+                    .set("font-family", "mono")
+                    .set("font-size", format!("{}%", area.w.min(area.h))) // == f64::min
+                    .set("text-anchor", "middle");
+                    label.append(Tekst::new(area.specific.to_string()))
+                    ;
+                group.append(label);
+            }
+            groups.push(group);
+
+
+
+            areas_plotted += 1;
+        }
+    }
+
+    let (defs, legend_g) = if matches.is_present("asn-colours") {
+        legend_discrete(&plot_info)
+    } else {
+        legend(&plot_info)
+    };
+
+    info!("plotting {} rectangles, limit was {}", areas_plotted, plot_limit);
+
+    let mut document = Document::new()
+                        .set("viewBox", (0, 0, WIDTH + LEGEND_MARGIN_W as f64, HEIGHT))
+                        .set("id", "treeplot")
+                        ;
+    for g in groups {
+        document.append(g);
+    }
+    document.append(defs);
+    document.append(legend_g);
+    document
+
+}
 
 pub fn legend(plot_info: &PlotInfo) -> (Definitions, Group) {
 
