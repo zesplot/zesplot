@@ -69,7 +69,7 @@ pub enum ColourMode {
 }
     
 
-pub struct PlotInfo<'a> {
+pub struct PlotInfo {
     pub max_hits: usize,
     pub max_dp_avg: f64,
     pub max_dp_median: f64,
@@ -79,11 +79,11 @@ pub struct PlotInfo<'a> {
     pub max_hw_avg: f64,
     pub colour_mode: ColourMode,
     pub dp_desc: String,
-    pub asn_colours: &'a HashMap<u32, String>
+    pub asn_colours: HashMap<u32, String>
 }
 
-impl <'a>PlotInfo<'a> {
-    pub fn new(asn_colours: &'a HashMap<u32, String>) -> PlotInfo<'a> {
+impl PlotInfo {
+    pub fn new(asn_colours: HashMap<u32, String>) -> PlotInfo {
         PlotInfo { 
             max_hits: 0,
             max_dp_avg: 0f64,
@@ -314,7 +314,7 @@ impl Specific {
             ColourMode::DpUniq => r.assign("fill", colour(self.dp_uniq() as u32, plot_info.max_dp_uniq as u32)),
             ColourMode::DpSum => r.assign("fill", colour(self.dp_sum() as u32, plot_info.max_dp_sum as u32)),
             ColourMode::HwAvg => r.assign("fill", colour(self.hw_avg() as u32, plot_info.max_hw_avg as u32)),
-            ColourMode::Asn => r.assign("fill", colour_from_map(self.asn(), plot_info.asn_colours))
+            ColourMode::Asn => r.assign("fill", colour_from_map(self.asn(), &plot_info.asn_colours))
         }
         r
 

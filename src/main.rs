@@ -5,12 +5,11 @@ extern crate simplelog;
 use simplelog::{SimpleLogger, LevelFilter, Config};
 
 mod treemap;
-use treemap::{Area,Row,DataPoint,PlotInfo,specs_to_hier,Specific};
+use treemap::{Area,Row,DataPoint,specs_to_hier};
 
 mod plot;
 
 use std::collections::HashSet;
-use std::collections::HashMap;
 
 extern crate easy_csv;
 #[macro_use] extern crate easy_csv_derive;
@@ -175,93 +174,13 @@ fn main() {
 
     info!("-- reading input files");
 
-    let mut datapoints: Vec<DataPoint> = Vec::new();
-    let now = Instant::now();
-    //let datapoints = read_datapoints_from_file(matches.value_of("address-file").unwrap(),
-    //                                            matches.value_of("colour-input").unwrap()).unwrap();
-    //let datapoints;
-    match read_datapoints_from_file(matches.value_of("address-file").unwrap(),
-                                    matches.value_of("colour-input").unwrap()) {
-        Ok(dps) => datapoints = dps,
-        Err(e) => error!("Can not read datapoints from address-file: {}", e),
-    };
-                      
 
-    info!("file read: {}.{:.2}s", now.elapsed().as_secs(), now.elapsed().subsec_millis());
-
-    let mut table = prefixes_from_file(matches.value_of("prefix-file").unwrap()).unwrap();
-
-    info!("prefixes: {} , addresses: {}", table.iter().count(), datapoints.len());
-    let mut prefix_mismatches = 0;
-    let mut asn_to_hits: HashMap<String, usize> = HashMap::new();
-    for dp in datapoints.into_iter() {
-        if let Some((_, _, s)) = table.longest_match_mut(dp.ip6) {
-            s.push_dp(dp);
-            let asn_hitcount = asn_to_hits.entry(s.asn.clone()).or_insert(0);
-            *asn_hitcount += 1;
-        } else {
-            prefix_mismatches += 1;
-        }
-    }
-
-    let unique_asns: HashSet<String> = asn_to_hits.keys().cloned().collect();
-    
-    if prefix_mismatches > 0 {
-        warn!("Could not match {} addresses", prefix_mismatches);
-    }
-
-    // this is also used later on when creating svg/html files
-    let output_dir = matches.value_of("output-dir").unwrap_or_else(|| "./");
-
-    if matches.is_present("create-addresses") {
-        let address_output_fn = format!("{}/{}.addresses",
-                    output_dir,
-                    Path::new(matches.value_of("address-file").unwrap()).file_name().unwrap().to_str().unwrap(),
-        );
-        info!("creating address file {}", address_output_fn);
-        let mut file = File::create(address_output_fn).unwrap();
-        for (_,_,s) in table.iter() {
-            for dp in s.datapoints.iter() {
-                let _ = writeln!(file, "{}", dp.ip6);
-            }
-        }
-        exit(0);
-    }
-
-
-    // read extra ASN colour info, if any
-    let asn_colours: &mut HashMap<u32, String> = &mut HashMap::new();
-    if matches.is_present("asn-colours") {
-        *asn_colours = asn_colours_from_file(matches.value_of("asn-colours").unwrap()).unwrap();
-    }
-
-    let mut plot_info = PlotInfo::new(asn_colours);
-    plot_info.set_maxes(&table, &matches);
-    let unsized_rectangles = matches.is_present("unsized-rectangles");
-
-    let mut specifics: Vec<Specific>  = table.into_iter().map(|(_,_,s)| s).collect();
-    let mut specifics_with_hits = 0;
-    for s in &specifics {
-        if s.hits() > 0 {
-            specifics_with_hits += 1;
-        }
-    }
-
-    info!("# of specifics: {}", specifics.len());
-    info!("# of specifics with hits: {}", specifics_with_hits);
-    info!("# of ASNs with hits: {}", unique_asns.len());
-    info!("# of hits in all specifics: {}", specifics.iter().fold(0, |sum, s| sum + s.all_hits())  );
-
-    if matches.is_present("filter-threshold-asn") {
-        let minimum = value_t!(matches.value_of("filter-threshold-asn"), usize).unwrap_or_else(|_| 0);
-        warn!("got --filter-threshold-asns, only plotting ASNs with minimum hits of {}", minimum);
-        let pre_filter_len_specs = specifics.len();
-        specifics.retain(|s| *asn_to_hits.get(&s.asn).unwrap_or(&0) >= minimum);
-        warn!("filtered {} specifics, left: {}", pre_filter_len_specs - specifics.len(), specifics.len());
-    }
+    let (mut specifics, plot_info) = process_inputs(&matches);
 
     specifics = specs_to_hier(&specifics);
     info!("# of top-level specifics: {}", specifics.len());
+    let unsized_rectangles = matches.is_present("unsized-rectangles");
+
 
     //let mut specifics: Vec<Specific>  = specs_to_hier(&table.into_iter().map(|(_,_,s)| s).collect());
     // without hierarchy: //TODO make this a switch
@@ -270,7 +189,6 @@ fn main() {
     // we calculate the total_area after turning the specifics into an hierarchical model
     // because the hierchical model will have less 'first level' rectangles, thus a smaller total_area
     let mut total_area = specifics.iter().fold(0, |sum, s|{sum + s.size(unsized_rectangles)});
-
 
 
     if matches.is_present("filter-empty-prefixes") {
@@ -292,6 +210,7 @@ fn main() {
     // this is affected by how we impement the filtering of empty prefixes
     // do we want to keep empty more-specifics of parents with hits?
     // idea: be lenient in create-prefixes, so we have the option to be more restrictive in the filtering
+    let output_dir = matches.value_of("output-dir").unwrap_or_else(|| "./");
     if matches.is_present("create-prefixes") {
         specifics.retain(|s| s.all_hits() > 0);
         let prefix_output_fn = format!("{}/{}.prefixes",
@@ -368,5 +287,4 @@ fn main() {
     }
 
 }
-
 
