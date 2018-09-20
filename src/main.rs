@@ -11,8 +11,8 @@ mod plot;
 
 use std::collections::HashSet;
 
-extern crate easy_csv;
-#[macro_use] extern crate easy_csv_derive;
+//extern crate easy_csv;
+//#[macro_use] extern crate easy_csv_derive;
 extern crate csv;
 
 extern crate hex;
@@ -23,8 +23,6 @@ use input::*;
 
 mod output;
 
-
-use std::time::{Instant};
 
 use std::process::exit;
 
@@ -43,7 +41,7 @@ use std::path::Path;
 fn main() {
 
     let matches = App::new("zesplot")
-                        .version("0.1")
+                        .version(env!("CARGO_PKG_VERSION"))
                         .author("Luuk Hendriks")
                         .arg(Arg::with_name("verbose")
                             .short("v")
@@ -88,6 +86,10 @@ fn main() {
                              .long("unsized")
                              .help("Do not size the rectangles based on prefix length, but size them all equally")
                         )
+                        // TODO: hits/mss/ttl are now based on --csv
+                        // though, 'hits' might still have a place if we want colouring on hits,
+                        // but extra stats in the hover in the .html ...
+                        // what to do with hw?
                         .arg(Arg::with_name("colour-input")
                              .short("c")
                              .long("colour-input")
@@ -98,6 +100,11 @@ fn main() {
                                 \"ttl\" (average TTL of responses in prefix, only when using ZMAP input)")
                              .takes_value(true)
                              .required(true)
+                        )
+                        .arg(Arg::with_name("csv-columns")
+                            .long("csv")
+                            .help("When passing csv input in --addresses, use --csv $addr[,$dp] to denote which columns to use for addresses and datapoints, e.g. TTL or MSS") 
+                            .takes_value(true)
                         )
                         .arg(Arg::with_name("scale-max")
                             .long("--scale-max")

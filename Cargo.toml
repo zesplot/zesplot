@@ -12,9 +12,9 @@ rand = "0.4.2"
 serde = "1.0.36"
 serde_derive = "1.0.36"
 
-easy-csv = "0.3.2"
-easy-csv-derive = "0.3.2"
-csv = "0.15"
+#easy-csv = "0.3.2"
+#easy-csv-derive = "0.3.2"
+csv = "1.0.1"
 
 hex = "0.3.2"
 

@@ -5,12 +5,15 @@ use ipnetwork::Ipv6Network;
 
 use std::io;
 use std::io::prelude::*;
-use std::collections::HashMap;
+use std::collections::{HashMap,HashSet};
 use std::fs::File;
 use std::io::BufReader;
 
-use super::*; // ugly 'fix' ?
-use easy_csv::{CSVIterator};
+//use super::*; // ugly 'fix' ?
+//use easy_csv::{CSVIterator};
+use std::time::Instant;
+use std::process::exit;
+use std::path::Path;
 
 use csv;
 use hex;
@@ -24,8 +27,9 @@ pub fn process_inputs(matches: &ArgMatches) -> (Vec<Specific> , PlotInfo) {
 
     let mut datapoints: Vec<DataPoint> = Vec::new();
     let now = Instant::now();
-    match read_datapoints_from_file(matches.value_of("address-file").unwrap(),
-                                    matches.value_of("colour-input").unwrap()) {
+    //match read_datapoints_from_file(matches.value_of("address-file").unwrap(),
+    //                                matches.value_of("colour-input").unwrap()) {
+    match read_datapoints_from_file(&matches) {
         Ok(dps) => datapoints = dps,
         Err(e) => error!("Can not read datapoints from address-file: {}", e),
     };
@@ -38,7 +42,7 @@ pub fn process_inputs(matches: &ArgMatches) -> (Vec<Specific> , PlotInfo) {
     info!("prefixes: {} , addresses: {}", table.iter().count(), datapoints.len());
     let mut prefix_mismatches = 0;
     let mut asn_to_hits: HashMap<String, usize> = HashMap::new();
-    for dp in datapoints.into_iter() {
+    for dp in datapoints {
         if let Some((_, _, s)) = table.longest_match_mut(dp.ip6) {
             s.push_dp(dp);
             let asn_hitcount = asn_to_hits.entry(s.asn.clone()).or_insert(0);
@@ -65,7 +69,7 @@ pub fn process_inputs(matches: &ArgMatches) -> (Vec<Specific> , PlotInfo) {
         info!("creating address file {}", address_output_fn);
         let mut file = File::create(address_output_fn).unwrap();
         for (_,_,s) in table.iter() {
-            for dp in s.datapoints.iter() {
+            for dp in &s.datapoints {
                 let _ = writeln!(file, "{}", dp.ip6);
             }
         }
@@ -125,7 +129,7 @@ pub fn process_inputs(matches: &ArgMatches) -> (Vec<Specific> , PlotInfo) {
 // or, simply fetched from http://data.caida.org/datasets/routing/routeviews6-prefix2as/2018/01/
 // awk '{print $1"/"$2, $3}'
 
-pub fn prefixes_from_file(f: &str) -> io::Result<IpLookupTable<Ipv6Addr,Specific>> {
+fn prefixes_from_file(f: &str) -> io::Result<IpLookupTable<Ipv6Addr,Specific>> {
     let mut file = File::open(f)?;
     let mut s = String::new();
     file.read_to_string(&mut s)?;
@@ -145,7 +149,7 @@ pub fn prefixes_from_file(f: &str) -> io::Result<IpLookupTable<Ipv6Addr,Specific
     Ok(table)
 }
 
-pub fn asn_colours_from_file(f: &str) -> io::Result<HashMap<u32, String>> {
+fn asn_colours_from_file(f: &str) -> io::Result<HashMap<u32, String>> {
     let mut mapping: HashMap<u32, String> = HashMap::new();
     let mut file = File::open(f)?;
     let mut s = String::new();
@@ -160,23 +164,24 @@ pub fn asn_colours_from_file(f: &str) -> io::Result<HashMap<u32, String>> {
     Ok(mapping)
 }
 
-#[derive(Debug,CSVParsable)] //Deserialize
-struct ZmapRecord {
-    saddr: String,
-    ttl: u8,
-}
+//#[derive(Debug,CSVParsable)] //Deserialize
+//struct ZmapRecord {
+//    saddr: String,
+//    ttl: u8,
+//}
+//
+//#[derive(Debug,CSVParsable)] //Deserialize
+//struct ZmapRecordTcpmss {
+//    saddr: String,
+//    tcpmss: u16
+//}
+//#[derive(Debug,CSVParsable)] //Deserialize
+//struct ZmapRecordDns {
+//    saddr: String,
+//    data: String
+//}
 
-#[derive(Debug,CSVParsable)] //Deserialize
-struct ZmapRecordTcpmss {
-    saddr: String,
-    tcpmss: u16
-}
-#[derive(Debug,CSVParsable)] //Deserialize
-struct ZmapRecordDns {
-    saddr: String,
-    data: String
-}
-
+/*
 pub fn read_datapoints_from_file<'a, 'b>(f: &'a str, colour_input: &'b str) -> io::Result<Vec<DataPoint>> {
     let mut datapoints: Vec<DataPoint> = Vec::new();
 
@@ -237,4 +242,77 @@ pub fn read_datapoints_from_file<'a, 'b>(f: &'a str, colour_input: &'b str) -> i
             }
     }
     Ok(datapoints)
+}
+*/
+
+
+fn read_datapoints_from_file(matches: &ArgMatches) -> io::Result<Vec<DataPoint>> {
+    let mut datapoints: Vec<DataPoint>  = Vec::new();
+
+    let address_fn = matches.value_of("address-file").unwrap();
+    //if address_fn.contains(".csv") { // TODO this should based on something like --csv 'saddr'
+    if matches.is_present("csv-columns"){
+        // expect ZMAP/csv output as input
+        info!("--csv passed, assuming addresses input in csv format");
+
+        let csv_columns: Vec<&str> = matches.value_of("csv-columns").unwrap().split(',').collect();
+        info!("--csv: found {} column(s)", csv_columns.len());
+        if csv_columns.len() > 2 {
+            warn!("--csv: only using first 2 columns!");
+        }
+        let csv_addr;
+        let csv_meta;
+        match csv_columns.len() {
+            1 => { csv_addr = csv_columns[0]; csv_meta = ""; }
+            i if i >= 2 => { csv_addr = csv_columns[0]; csv_meta = csv_columns[1]; }
+            _ => { panic!("need one or two column names to parse csv input"); }
+        }
+
+        let mut rdr = csv::Reader::from_path(address_fn)?;
+        
+        let headers = rdr.headers().unwrap().clone();
+        let mut record = csv::StringRecord::new();
+
+        let idx_saddr = headers.iter().position(|r| r == csv_addr)
+            .unwrap_or_else(|| panic!("no such column in the csv file: {}", csv_addr));
+        if csv_meta != "" {
+            let idx_meta = headers.iter()
+                .position(|r| r == csv_meta)
+                .unwrap_or_else(|| panic!("no such column in the csv file: {}", csv_meta));
+
+            println!("indexes {} and {}", idx_saddr, idx_meta);
+            while rdr.read_record(&mut record).unwrap() {
+                datapoints.push(
+                    DataPoint {
+                        ip6: record[idx_saddr].parse().unwrap(),
+                        meta: record[idx_meta].parse().unwrap()
+                    }
+                );
+            }
+
+        } else {
+            // no second CSV column passed to use (TTL, MSS, etc), so use 0
+            while rdr.read_record(&mut record).unwrap() {
+                datapoints.push(
+                    DataPoint {
+                        ip6: record[idx_saddr].parse().unwrap(),
+                        meta: 0,
+                    }
+                );
+            }
+
+        }
+
+    } else {
+        // expect a simple list of IPv6 addresses separated by newlines
+        for line in BufReader::new(
+                File::open(address_fn).expect("Failed to open addresses file")
+            ).lines(){
+                let line = line.unwrap();
+                datapoints.push(DataPoint { ip6: line.parse().expect("invalid IPv6 address in input file"), meta: 0 });
+            }
+    }
+
+    Ok(datapoints)
+
 }
