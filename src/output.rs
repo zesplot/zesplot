@@ -19,9 +19,9 @@ fn construct_fn(matches: &ArgMatches) -> String {
     }
 
     if matches.is_present("unsized-rectangles") {
-        output_fn.push_str("unsized");
+        output_fn.push_str(".unsized");
     } else {
-        output_fn.push_str("sized");
+        output_fn.push_str(".sized");
     }
     if matches.is_present("filter-empty-prefixes") {
         output_fn.push_str(&format!(".filtered.ft{}", matches.value_of("filter-threshold").unwrap_or("1")));
