@@ -11,6 +11,8 @@ use svg::node::element::Rectangle;
 use std::collections::{HashMap, HashSet};
 use clap::ArgMatches;
 
+use std::cmp::Ordering;
+
 #[derive(Debug, Clone)]
 pub struct Specific {
     pub network: Ipv6Network,
@@ -67,18 +69,131 @@ pub enum ColourMode {
     HwAvg,
     Asn
 }
+
+pub enum DpFunction {
+    Mean,
+    Median,
+    Var,
+    Uniq,
+    Sum,
+}
     
+//TODO PlotParams, with all params from the cli
+// should be used to create output_fn
+// and should be sufficient to pass around instead of &matches
+// should also only contain a ColourScale, so all the max_ are not necessary anymore
+
+
+pub struct PlotParams {
+    pub sized: bool,
+    pub bit_size_factor: f64,  // default 2.0, so a /48 is twice the size of a /49
+    pub legend_label: String,
+    pub show_legend: bool,
+    pub colour_scale: plot::ColourScale,
+    pub filter_threshold: u64,
+    pub dp_function: Option<DpFunction>,
+    // asn_colours? or make that a type of ColourScale?
+}
+
+impl PlotParams {
+    pub fn new(table: &IpLookupTable<Ipv6Addr,Specific>, matches: &ArgMatches) -> PlotParams {
+        let sized = matches.is_present("unsized");
+        let bit_size_factor = value_t!(matches.value_of("bit-size-factor"), f64) .unwrap_or_else(|_| 2.0_f64);
+
+        // nothing passed? -> hits , no dp-function
+
+        // other colour is triggered by --csv with a second column
+        // only then a DpFunction should be active
+        // (or do we want uniq(addresses) as well?) -> that's more like the hamming weight thing
+        // (also, we still have iTTL functions, DNS RA bit extraction..)
+        // DpFunctions: mean, median, var, uniq, sum 
+        // values: ttl, mss, --csv
+
+        let mut colour_metric = "hits"; 
+
+        //FIXME we already parse --csv in read_datapoints_from_file ..
+        if matches.is_present("csv-columns"){
+            let csv_columns: Vec<&str> = matches.value_of("csv-columns").unwrap().split(',').collect();
+            if csv_columns.len() > 1 {
+                colour_metric = csv_columns[1];
+            }
+        }
+
+        let dp_function = if matches.is_present("dp-function") {
+            match matches.value_of("dp-function").unwrap() {
+                "mean"      => Some(DpFunction::Mean),
+                "median"    => Some(DpFunction::Median),
+                "var"       => Some(DpFunction::Var),
+                "uniq"      => Some(DpFunction::Uniq),
+                "sum"       => Some(DpFunction::Sum),
+                _           => { warn!("unknown dp-function passed"); None },
+            }
+        } else {
+            None
+        };
+
+        let legend_label = if matches.is_present("legend-label") {
+            matches.value_of("legend-label").unwrap().to_string()
+        } else if dp_function.is_some() {
+            match dp_function {
+                Some(DpFunction::Mean)   =>   format!("mean({})", colour_metric),
+                Some(DpFunction::Median) =>   format!("median({})", colour_metric),
+                Some(DpFunction::Var)    =>   format!("var({})", colour_metric),
+                Some(DpFunction::Uniq)   =>   format!("uniq({})", colour_metric),
+                Some(DpFunction::Sum)    =>   format!("sum({})", colour_metric),
+                _  => { warn!("unknown dp-function when constructing legend label"); "FIXME".to_string() },
+            }
+        } else {
+            colour_metric.to_string()
+        };
+
+        let show_legend = !matches.is_present("hide-legend"); //TODO implement in clap
+        let filter_threshold = value_t!(matches.value_of("filter-threshold"), u64).unwrap_or_else(|_| 1);
+
+        // determine min/max/medium for either hits or dp-function
+        //let (min, median, max): (f64, f64, f64) = match dp_function {
+        let mut meta_dps: Vec<f64>  = match dp_function {
+            Some(DpFunction::Mean)      => table.iter().map(|(_,_,s)| s.dp_mean()).collect(),
+            Some(DpFunction::Median)    => table.iter().map(|(_,_,s)| s.dp_median()).collect(),
+            Some(DpFunction::Var)       => table.iter().map(|(_,_,s)| s.dp_var()).collect(),
+            Some(DpFunction::Uniq)      => table.iter().map(|(_,_,s)| s.dp_uniq()).collect(),
+            Some(DpFunction::Sum)       => table.iter().map(|(_,_,s)| s.dp_sum()).collect(),
+            None                        => table.iter().map(|(_,_,s)| s.datapoints.len() as f64).collect(),
+        };
+
+        meta_dps.sort_by(|a, b| a.partial_cmp(b).unwrap_or(Ordering::Less));
+        let (min, med, max) = (meta_dps[0], meta_dps[meta_dps.len()/2], meta_dps[meta_dps.len()-1]);
+            
+        let colour_scale = plot::ColourScale::new(min as u64, med as u64, max as u64);
+
+        PlotParams {
+            sized,
+            bit_size_factor,
+            legend_label,
+            show_legend,
+            colour_scale,
+            filter_threshold,
+            dp_function,
+            }
+
+    }
+
+    pub fn to_filename(&self) -> &str {
+        "TODO"
+    }
+}
 
 pub struct PlotInfo {
     pub max_hits: usize,
     pub max_dp_avg: f64,
     pub max_dp_median: f64,
     pub max_dp_var: f64,
-    pub max_dp_uniq: usize,
-    pub max_dp_sum: usize,
+    pub max_dp_uniq: f64,
+    pub max_dp_sum: f64,
     pub max_hw_avg: f64,
     pub colour_mode: ColourMode,
     pub dp_desc: String,
+    //pub colour_scale: plot::ColourScale,
     pub asn_colours: HashMap<u32, String>
 }
 
@@ -89,8 +204,8 @@ impl PlotInfo {
             max_dp_avg: 0f64,
             max_dp_median: 0f64,
             max_dp_var: 0f64,
-            max_dp_uniq: 0,
-            max_dp_sum: 0,
+            max_dp_uniq: 0f64,
+            max_dp_sum: 0f64,
             max_hw_avg: 0f64,
             colour_mode: ColourMode::Hits,
             dp_desc: "".to_string(),
@@ -163,7 +278,7 @@ impl PlotInfo {
     }
 }
 
-pub fn var(s: &[u32]) -> f64 {
+fn var(s: &[u32]) -> f64 {
     if s.len() < 2 {
         return 0.0;
     }
@@ -175,7 +290,7 @@ pub fn var(s: &[u32]) -> f64 {
 }
 
 
-pub fn median(s: &[u32]) -> f64 {
+fn median(s: &[u32]) -> f64 {
     if s.is_empty() {
         return 0.0;
     }
@@ -196,9 +311,15 @@ impl Specific {
         self.datapoints.push(dp);
     }
 
+    // TODO remove and replace with dp_mean
     pub fn dp_avg(&self) -> f64 {
         let sum = self.datapoints.iter().fold(0, |s, i| s + i.meta);
         f64::from(sum) / self.datapoints.len() as f64
+    }
+
+    // TODO re-use dp_sum here
+    pub fn dp_mean(&self) -> f64 {
+        f64::from(self.datapoints.iter().map(|e| e.meta).sum::<u32>()) / self.datapoints.len() as f64
     }
 
     pub fn dp_var(&self) -> f64 {
@@ -209,16 +330,18 @@ impl Specific {
         median(&self.datapoints.iter().map(|dp| dp.meta).collect::<Vec<u32>>().as_slice())
     }
 
-    pub fn dp_uniq(&self) -> usize {
+    pub fn dp_uniq(&self) -> f64 {
         let mut uniq_meta: HashSet<u32> = HashSet::new();
         for dp in &self.datapoints {
             uniq_meta.insert(dp.meta);
         }
-        uniq_meta.len()
+        uniq_meta.len() as f64
     }
 
-    pub fn dp_sum(&self) -> usize {
-        self.datapoints.iter().fold(0, |s, i| s + i.meta as usize)
+    // TODO test and use the sum from dp_mean
+    pub fn dp_sum(&self) -> f64 {
+        //self.datapoints.iter().fold(0f64, |s, i| s + i.meta as f64)
+        f64::from(self.datapoints.iter().map(|e| e.meta).sum::<u32>())
     }
 
     pub fn hw_avg(&self) -> f64 {
@@ -281,8 +404,6 @@ impl Specific {
         }
     }
 
-//#[allow(clippy::too_many_arguments)]
-    //pub fn to_rect(&self, x: f64, y: f64, w: f64, h: f64, w_factor: f64, h_factor: f64, plot_info: &PlotInfo) -> super::Rectangle {
     pub fn to_rect(&self, t: Turtle, w_factor: f64, h_factor: f64, plot_info: &PlotInfo) -> Rectangle {
         let Turtle {x, y, w, h} = t;
         let mut r = Rectangle::new()
@@ -610,6 +731,9 @@ pub fn areas_to_rows(mut areas: Vec<Area>) -> Vec<Row> {
 }
 
 
+
+
+
 // for things that are less spread, e.g. avg TTL, the non-log version might give better output
 // try whether some threshold within the same function works
 // e.g. if max > 1024, then log2()
@@ -682,84 +806,88 @@ fn colour_from_map(asn: u32, mapping: &HashMap<u32, String>) -> String {
 
 
 #[cfg(test)]
-#[test]
-fn hamming_weight() {
-    let dp = super::DataPoint { ip6: "2001:db8::1".parse().unwrap(), meta: 0 };
-    assert_eq!(dp.hamming_weight(64), 1);
-    let dp = super::DataPoint { ip6: "2001:db8::2".parse().unwrap(), meta: 0 };
-    assert_eq!(dp.hamming_weight(64), 1);
-    let dp = super::DataPoint { ip6: "2001:db8::1:1:1:1".parse().unwrap(), meta: 0 };
-    assert_eq!(dp.hamming_weight(64), 4);
-    let dp = super::DataPoint { ip6: "2001:db8::1:1:1:1".parse().unwrap(), meta: 0 };
-    assert_eq!(dp.hamming_weight(96), 2);
-    let dp = super::DataPoint { ip6: "2001:db8::3:3:3:3".parse().unwrap(), meta: 0 };
-    assert_eq!(dp.hamming_weight(64), 2+2+2+2);
-}
+mod tests {
+    use super::*;
+    #[test]
+    fn hamming_weight() {
+        let dp = super::DataPoint { ip6: "2001:db8::1".parse().unwrap(), meta: 0 };
+        assert_eq!(dp.hamming_weight(64), 1);
+        let dp = super::DataPoint { ip6: "2001:db8::2".parse().unwrap(), meta: 0 };
+        assert_eq!(dp.hamming_weight(64), 1);
+        let dp = super::DataPoint { ip6: "2001:db8::1:1:1:1".parse().unwrap(), meta: 0 };
+        assert_eq!(dp.hamming_weight(64), 4);
+        let dp = super::DataPoint { ip6: "2001:db8::1:1:1:1".parse().unwrap(), meta: 0 };
+        assert_eq!(dp.hamming_weight(96), 2);
+        let dp = super::DataPoint { ip6: "2001:db8::3:3:3:3".parse().unwrap(), meta: 0 };
+        assert_eq!(dp.hamming_weight(64), 2+2+2+2);
+    }
 
-#[test]
-fn ttl_to_start_value() {
-    let mut dp = super::DataPoint { ip6: "2001:db8::1".parse().unwrap(), meta: 111 } ;
-    dp.ttl_to_start_value();
-    assert_eq!(dp.meta, 128);
+    #[test]
+    fn ttl_to_start_value() {
+        let mut dp = super::DataPoint { ip6: "2001:db8::1".parse().unwrap(), meta: 111 } ;
+        dp.ttl_to_start_value();
+        assert_eq!(dp.meta, 128);
 
-    let mut dp = super::DataPoint { ip6: "2001:db8::1".parse().unwrap(), meta: 59 } ;
-    dp.ttl_to_start_value();
-    assert_eq!(dp.meta, 64);
+        let mut dp = super::DataPoint { ip6: "2001:db8::1".parse().unwrap(), meta: 59 } ;
+        dp.ttl_to_start_value();
+        assert_eq!(dp.meta, 64);
 
-    let mut dp = super::DataPoint { ip6: "2001:db8::1".parse().unwrap(), meta: 29 } ;
-    dp.ttl_to_start_value();
-    assert_eq!(dp.meta, 32);
-}
+        let mut dp = super::DataPoint { ip6: "2001:db8::1".parse().unwrap(), meta: 29 } ;
+        dp.ttl_to_start_value();
+        assert_eq!(dp.meta, 32);
+    }
 
-#[test]
-fn ttl_to_path_length() {
-    let mut dp = super::DataPoint { ip6: "2001:db8::1".parse().unwrap(), meta: 111 } ;
-    dp.ttl_to_path_length();
-    assert_eq!(dp.meta, 17);
+    #[test]
+    fn ttl_to_path_length() {
+        let mut dp = super::DataPoint { ip6: "2001:db8::1".parse().unwrap(), meta: 111 } ;
+        dp.ttl_to_path_length();
+        assert_eq!(dp.meta, 17);
 
-    let mut dp = super::DataPoint { ip6: "2001:db8::1".parse().unwrap(), meta: 59 } ;
-    dp.ttl_to_path_length();
-    assert_eq!(dp.meta, 5);
+        let mut dp = super::DataPoint { ip6: "2001:db8::1".parse().unwrap(), meta: 59 } ;
+        dp.ttl_to_path_length();
+        assert_eq!(dp.meta, 5);
 
-    let mut dp = super::DataPoint { ip6: "2001:db8::1".parse().unwrap(), meta: 29 } ;
-    dp.ttl_to_path_length();
-    assert_eq!(dp.meta, 35);
-}
-#[test]
-fn test_var() {
-    let s: Vec<u32> = vec![];
-    assert_eq!(var(&s), 0.0);
+        let mut dp = super::DataPoint { ip6: "2001:db8::1".parse().unwrap(), meta: 29 } ;
+        dp.ttl_to_path_length();
+        assert_eq!(dp.meta, 35);
+    }
+    #[test]
+    fn test_var() {
+        let s: Vec<u32> = vec![];
+        assert_eq!(var(&s), 0.0);
 
-    let s: Vec<u32> = vec![1];
-    assert_eq!(var(&s), 0.0);
+        let s: Vec<u32> = vec![1];
+        assert_eq!(var(&s), 0.0);
 
-    let s: Vec<u32> = vec![1,2,3];
-    assert_eq!(var(&s), 1.0);
+        let s: Vec<u32> = vec![1,2,3];
+        assert_eq!(var(&s), 1.0);
 
-    let s: Vec<u32> = vec![10,20,30];
-    assert_eq!(var(&s), 100.0);
+        let s: Vec<u32> = vec![10,20,30];
+        assert_eq!(var(&s), 100.0);
 
-    let s: Vec<u32> = vec![10,10,10,10,10,10,10,11];
-    assert_eq!(var(&s), 0.125);
-}
+        let s: Vec<u32> = vec![10,10,10,10,10,10,10,11];
+        assert_eq!(var(&s), 0.125);
+    }
 
-#[test]
-fn test_median() {
-    let s: Vec<u32> = vec![];
-    assert_eq!(median(&s), 0.0);
+    #[test]
+    fn test_median() {
+        let s: Vec<u32> = vec![];
+        assert_eq!(median(&s), 0.0);
 
-    let s: Vec<u32> = vec![1];
-    assert_eq!(median(&s), 1.0);
+        let s: Vec<u32> = vec![1];
+        assert_eq!(median(&s), 1.0);
 
-    let s: Vec<u32> = vec![0, 1];
-    assert_eq!(median(&s), 0.5);
+        let s: Vec<u32> = vec![0, 1];
+        assert_eq!(median(&s), 0.5);
 
-    let s: Vec<u32> = vec![0, 1, 2];
-    assert_eq!(median(&s), 1.0);
+        let s: Vec<u32> = vec![0, 1, 2];
+        assert_eq!(median(&s), 1.0);
 
-    let s: Vec<u32> = vec![9, 9, 8, 3, 1];
-    assert_eq!(median(&s), 8.0);
+        let s: Vec<u32> = vec![9, 9, 8, 3, 1];
+        assert_eq!(median(&s), 8.0);
 
-    let s: Vec<u32> = vec![9, 8, 3, 1];
-    assert_eq!(median(&s), 5.5);
+        let s: Vec<u32> = vec![9, 8, 3, 1];
+        assert_eq!(median(&s), 5.5);
+    }
+
 }

@@ -1,4 +1,4 @@
-use treemap::{Specific, DataPoint, PlotInfo};
+use treemap::{Specific, DataPoint, PlotInfo, PlotParams};
 
 use std::net::Ipv6Addr;
 use ipnetwork::Ipv6Network;
@@ -86,6 +86,13 @@ pub fn process_inputs(matches: &ArgMatches) -> (Vec<Specific> , PlotInfo) {
 
     let mut plot_info = PlotInfo::new(asn_colours.clone());
     plot_info.set_maxes(&table, &matches);
+
+
+    //TODO:
+    // create PlotParams and return that instead of PlotInfo
+    let plot_params = PlotParams::new(&table, &matches);
+
+
 
     //TODO: put unsized into plot_info ?
     //let unsized_rectangles = matches.is_present("unsized-rectangles");
@@ -280,7 +287,6 @@ fn read_datapoints_from_file(matches: &ArgMatches) -> io::Result<Vec<DataPoint>>
                 .position(|r| r == csv_meta)
                 .unwrap_or_else(|| panic!("no such column in the csv file: {}", csv_meta));
 
-            println!("indexes {} and {}", idx_saddr, idx_meta);
             while rdr.read_record(&mut record).unwrap() {
                 datapoints.push(
                     DataPoint {

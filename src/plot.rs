@@ -22,6 +22,37 @@ const TICK_FONT_SIZE: &str = "40%";
 pub const LEGEND_MARGIN_W: f64 = LEGEND_GRADIENT_WIDTH + 2.0*LEGEND_GRADIENT_MARGIN + 20.0;
 
 
+#[derive(Debug)]
+pub struct ColourScale {
+    max: u64,
+    min: u64,
+    median: u64,
+}
+
+impl ColourScale {
+    pub fn new(max: u64, min: u64, median: u64) -> ColourScale {
+        ColourScale {
+            max,
+            min,
+            median,
+        }
+    }
+
+    // returns hsl format
+    // h ==   0 -> red
+    // h == 240 -> blue
+    pub fn get(&self, dp: u64) -> (f64,u32,u32) {
+        if dp == 0 {
+            return (180_f64, 10, 75); // grey
+        }
+        let c = if dp >= self.median {
+            - ((120_f64 / (self.max - self.median) as f64) * (dp - self.median) as f64)
+        } else {
+            ((120_f64 / (self.median - self.min) as f64) * (self.median - dp) as f64)
+        };
+        (120_f64 + c , 80, 50)
+    }
+}
 
 pub fn draw_svg(matches: &ArgMatches, rows: Vec<Row>, plot_info: &PlotInfo) -> svg::Document {
     let mut groups: Vec<Group> = Vec::new();

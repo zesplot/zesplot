@@ -5,14 +5,12 @@ extern crate simplelog;
 use simplelog::{SimpleLogger, LevelFilter, Config};
 
 mod treemap;
-use treemap::*; //{Area,Row,DataPoint,specs_to_hier};
+use treemap::*; 
 
 mod plot;
 
 use std::collections::HashSet;
 
-//extern crate easy_csv;
-//#[macro_use] extern crate easy_csv_derive;
 extern crate csv;
 
 extern crate hex;
