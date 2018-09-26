@@ -5,7 +5,7 @@ extern crate simplelog;
 use simplelog::{SimpleLogger, LevelFilter, Config};
 
 mod treemap;
-use treemap::{Area,Row,DataPoint,specs_to_hier};
+use treemap::*; //{Area,Row,DataPoint,specs_to_hier};
 
 mod plot;
 
@@ -246,36 +246,7 @@ fn main() {
         areas.push(Area::new(s.size(unsized_rectangles) as f64 * norm_factor, init_ar, s  ));
     }
 
-
-    let mut rows = Vec::new();
-    //let (first_area, remaining_areas) = areas.split_first().unwrap();
-    let remaining_areas = areas.split_off(1);   // FIXME crashes when there is only a single prefix.
-                                                // Maybe use if let Some() =  split_first()?
-    let first_area = areas.pop().unwrap();
-    let (mut new_row_x, mut new_row_y) = (0.0, 0.0);
-    rows.push(Row::new(new_row_x, new_row_y, true, first_area));
-
-    for a in remaining_areas {
-
-        // if try() returns an Area, it means the row/column was 'full'
-        if let Some(area) = rows.last_mut().unwrap().try(a) {
-
-            let cur_row_w = rows.last().unwrap().w ;
-            let cur_row_h = rows.last().unwrap().h;
-            let cur_row_vertical = rows.last().unwrap().vertical;
-            if cur_row_vertical {
-                // create new horizontal row
-                new_row_x += cur_row_w;
-                rows.push(Row::new(new_row_x, new_row_y, false, area));
-            } else {
-                // create new vertical row
-                new_row_y += cur_row_h;
-                rows.push(Row::new(new_row_x, new_row_y, true, area));
-            }
-            rows.last_mut().unwrap().reflow();
-        }
-    }
-
+    let rows = treemap::areas_to_rows(areas);
 
     info!("-- drawing svg");
     let document = plot::draw_svg(&matches, rows, &plot_info);

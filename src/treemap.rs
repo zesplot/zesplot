@@ -578,6 +578,38 @@ impl Row {
 }
 
 
+pub fn areas_to_rows(mut areas: Vec<Area>) -> Vec<Row> {
+    let mut rows = Vec::new();
+    let remaining_areas = areas.split_off(1);   
+                                               
+    let first_area = areas.pop().unwrap();
+    let (mut new_row_x, mut new_row_y) = (0.0, 0.0);
+    rows.push(Row::new(new_row_x, new_row_y, true, first_area));
+
+    for a in remaining_areas {
+        // if try() returns an Area, it means the row/column was 'full'
+        if let Some(area) = rows.last_mut().unwrap().try(a) {
+
+            let cur_row_w = rows.last().unwrap().w ;
+            let cur_row_h = rows.last().unwrap().h;
+            let cur_row_vertical = rows.last().unwrap().vertical;
+            if cur_row_vertical {
+                // create new horizontal row
+                new_row_x += cur_row_w;
+                rows.push(Row::new(new_row_x, new_row_y, false, area));
+            } else {
+                // create new vertical row
+                new_row_y += cur_row_h;
+                rows.push(Row::new(new_row_x, new_row_y, true, area));
+            }
+            rows.last_mut().unwrap().reflow();
+        }
+    }
+
+    rows
+}
+
+
 // for things that are less spread, e.g. avg TTL, the non-log version might give better output
 // try whether some threshold within the same function works
 // e.g. if max > 1024, then log2()
