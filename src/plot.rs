@@ -24,19 +24,20 @@ pub const LEGEND_MARGIN_W: f64 = LEGEND_GRADIENT_WIDTH + 2.0*LEGEND_GRADIENT_MAR
 
 #[derive(Debug)]
 pub struct ColourScale {
-    max: u64,
     min: u64,
     median: u64,
+    max: u64,
 }
 
 impl ColourScale {
-    pub fn new(max: u64, min: u64, median: u64) -> ColourScale {
+    pub fn new(min: u64, median: u64, max: u64) -> ColourScale {
         ColourScale {
-            max,
             min,
             median,
+            max,
         }
     }
+
 
     // returns hsl format
     // h ==   0 -> red

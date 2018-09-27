@@ -173,23 +173,15 @@ fn main() {
     info!("-- reading input files");
 
 
-    let (mut specifics, plot_info) = process_inputs(&matches);
+    let (mut specifics, plot_info, mut plot_params) = process_inputs(&matches);
 
     specifics = specs_to_hier(&specifics);
+    // without hierarchy: TODO make this a switch
+    //let mut specifics: Vec<Specific>  = (table.into_iter().map(|(_,_,s)| s).collect());
     info!("# of top-level specifics: {}", specifics.len());
     let unsized_rectangles = matches.is_present("unsized-rectangles");
 
-
-    //let mut specifics: Vec<Specific>  = specs_to_hier(&table.into_iter().map(|(_,_,s)| s).collect());
-    // without hierarchy: //TODO make this a switch
-    //let mut specifics: Vec<Specific>  = (table.into_iter().map(|(_,_,s)| s).collect());
-
-    // we calculate the total_area after turning the specifics into an hierarchical model
-    // because the hierchical model will have less 'first level' rectangles, thus a smaller total_area
-    let mut total_area = specifics.iter().fold(0, |sum, s|{sum + s.size(unsized_rectangles)});
-
-
-    if matches.is_present("filter-empty-prefixes") {
+    if matches.is_present("filter-empty-prefixes") || matches.is_present("filter-threshold") {
         //TODO: currently, we plot everything that either contains hits, or has more-specifics that contain hits
         // if a prefix has multiple more-specifics, and only one has hits, all specifics are plotted
         // filtering out empty more-specifics might be useful
@@ -198,12 +190,22 @@ fn main() {
         let filter_threshold = value_t!(matches.value_of("filter-threshold"), usize).unwrap_or_else(|_| 1);
         info!("filter_threshold: {}", filter_threshold);
         specifics.retain(|s| s.all_hits() >= filter_threshold);
-        total_area = specifics.iter().fold(0, |sum, s|{sum + s.size(unsized_rectangles)});
-        info!("filtered {} empty specifics, left: {}", pre_filter_len_specs - specifics.len(), specifics.len());
+        //total_area = specifics.iter().fold(0, |sum, s|{sum + s.size(unsized_rectangles)});
+        info!("filtered {} empty specifics, left (top-level): {}", pre_filter_len_specs - specifics.len(), specifics.len());
 
     } else {
         info!("no filtering of empty prefixes");
     }
+
+    // re-calculate colour scale
+    plot_params.update_colour_scale(&specifics);
+    debug!("post filter plot_params: {:#?}", plot_params);
+
+
+    // we calculate the total_area after turning the specifics into an hierarchical model
+    // because the hierchical model will have less 'first level' rectangles, thus a smaller total_area
+    //let mut total_area = specifics.iter().fold(0, |sum, s|{sum + s.size(unsized_rectangles)});
+    let total_area = specifics.iter().fold(0, |sum, s|{sum + s.size(unsized_rectangles)});
 
     // this is affected by how we impement the filtering of empty prefixes
     // do we want to keep empty more-specifics of parents with hits?

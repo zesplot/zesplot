@@ -20,7 +20,7 @@ use clap::ArgMatches;
 
 
 //pub fn process_inputs(matches: &ArgMatches) -> IpLookupTable<Ipv6Addr,Specific> {
-pub fn process_inputs(matches: &ArgMatches) -> (Vec<Specific> , PlotInfo) {
+pub fn process_inputs(matches: &ArgMatches) -> (Vec<Specific> , PlotInfo, PlotParams) {
 
     let mut datapoints: Vec<DataPoint> = Vec::new();
     let now = Instant::now();
@@ -64,6 +64,7 @@ pub fn process_inputs(matches: &ArgMatches) -> (Vec<Specific> , PlotInfo) {
                     Path::new(matches.value_of("address-file").unwrap()).file_name().unwrap().to_str().unwrap(),
         );
         info!("creating address file {}", address_output_fn);
+        //TODO: this is slow! Use a BufWriter or something alike
         let mut file = File::create(address_output_fn).unwrap();
         for (_,_,s) in table.iter() {
             for dp in &s.datapoints {
@@ -85,10 +86,14 @@ pub fn process_inputs(matches: &ArgMatches) -> (Vec<Specific> , PlotInfo) {
     plot_info.set_maxes(&table, &matches);
 
 
+
+
+
     //TODO:
     // create PlotParams and return that instead of PlotInfo
     let plot_params = PlotParams::new(&table, &matches);
 
+    debug!("{:#?}", plot_params);
 
 
     //TODO: put unsized into plot_info ?
@@ -114,7 +119,7 @@ pub fn process_inputs(matches: &ArgMatches) -> (Vec<Specific> , PlotInfo) {
         warn!("filtered {} specifics, left: {}", pre_filter_len_specs - specifics.len(), specifics.len());
     }
 
-    (specifics, plot_info)
+    (specifics, plot_info, plot_params)
 }
 
 

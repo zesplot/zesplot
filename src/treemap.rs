@@ -12,6 +12,7 @@ use std::collections::{HashMap, HashSet};
 use clap::ArgMatches;
 
 use std::cmp::Ordering;
+use std::iter;
 
 #[derive(Debug, Clone)]
 pub struct Specific {
@@ -70,6 +71,7 @@ pub enum ColourMode {
     Asn
 }
 
+#[derive(Debug)]
 pub enum DpFunction {
     Mean,
     Median,
@@ -84,6 +86,7 @@ pub enum DpFunction {
 // should also only contain a ColourScale, so all the max_ are not necessary anymore
 
 
+#[derive(Debug)]
 pub struct PlotParams {
     pub sized: bool,
     pub bit_size_factor: f64,  // default 2.0, so a /48 is twice the size of a /49
@@ -97,7 +100,7 @@ pub struct PlotParams {
 
 impl PlotParams {
     pub fn new(table: &IpLookupTable<Ipv6Addr,Specific>, matches: &ArgMatches) -> PlotParams {
-        let sized = matches.is_present("unsized");
+        let sized = !matches.is_present("unsized-rectangles");
         let bit_size_factor = value_t!(matches.value_of("bit-size-factor"), f64) .unwrap_or_else(|_| 2.0_f64);
 
         // nothing passed? -> hits , no dp-function
@@ -151,7 +154,7 @@ impl PlotParams {
         let filter_threshold = value_t!(matches.value_of("filter-threshold"), u64).unwrap_or_else(|_| 1);
 
         // determine min/max/medium for either hits or dp-function
-        //let (min, median, max): (f64, f64, f64) = match dp_function {
+        // TODO remove this, we update it after filtering anyway
         let mut meta_dps: Vec<f64>  = match dp_function {
             Some(DpFunction::Mean)      => table.iter().map(|(_,_,s)| s.dp_mean()).collect(),
             Some(DpFunction::Median)    => table.iter().map(|(_,_,s)| s.dp_median()).collect(),
@@ -162,9 +165,9 @@ impl PlotParams {
         };
 
         meta_dps.sort_by(|a, b| a.partial_cmp(b).unwrap_or(Ordering::Less));
-        let (min, med, max) = (meta_dps[0], meta_dps[meta_dps.len()/2], meta_dps[meta_dps.len()-1]);
+        let (min, median, max) = (meta_dps[0], meta_dps[meta_dps.len()/2], meta_dps[meta_dps.len()-1]);
             
-        let colour_scale = plot::ColourScale::new(min as u64, med as u64, max as u64);
+        let colour_scale = plot::ColourScale::new(min as u64, median as u64, max as u64);
 
         PlotParams {
             sized,
@@ -178,9 +181,36 @@ impl PlotParams {
 
     }
 
-    pub fn to_filename(&self) -> &str {
-        "TODO"
+    pub fn update_colour_scale(&mut self, specifics: &[Specific]) {
+        // specifics could be nested, so iterate recursively using deep_iter()
+        // 
+        let mut meta_dps: Vec<f64>  = match self.dp_function {
+            Some(DpFunction::Mean)      => specifics.iter().flat_map(|s| s.deep_iter()).map(|s| s.dp_mean()).collect(),
+            Some(DpFunction::Median)    => specifics.iter().flat_map(|s| s.deep_iter()).map(|s| s.dp_median()).collect(),
+            Some(DpFunction::Var)       => specifics.iter().flat_map(|s| s.deep_iter()).map(|s| s.dp_var()).collect(),
+            Some(DpFunction::Uniq)      => specifics.iter().flat_map(|s| s.deep_iter()).map(|s| s.dp_uniq()).collect(),
+            Some(DpFunction::Sum)       => specifics.iter().flat_map(|s| s.deep_iter()).map(|s| s.dp_sum()).collect(),
+            None                        => specifics.iter().flat_map(|s| s.deep_iter()).map(|s| s.datapoints.len() as f64).collect(),
+        };
+
+        meta_dps.sort_by(|a, b| a.partial_cmp(b).unwrap_or(Ordering::Less));
+        let (min, max) = (meta_dps[0], meta_dps[meta_dps.len()-1]);
+        let median = if meta_dps.len() % 2 == 0 {
+            (meta_dps[meta_dps.len()/2] + meta_dps[meta_dps.len()/2 - 1]) / 2.0
+        } else {
+            meta_dps[meta_dps.len()/2]
+        };
+
+        self.colour_scale = plot::ColourScale::new(min as u64, median as u64, max as u64);
     }
+
+
+    // or do this by passing &plot_params to output::construct_fn ?
+    //pub fn to_filename(&self) -> String {
+    //    let mut filename = "".to_string();
+    //    filename.push_str("asd");
+    //    filename
+    //}
 }
 
 pub struct PlotInfo {
@@ -297,10 +327,8 @@ fn median(s: &[u32]) -> f64 {
     let mut sorted = s.to_owned();
     sorted.sort();
     if sorted.len() % 2  == 0 {
-        //((*sorted.get(sorted.len() / 2).unwrap() as f64 + *sorted.get(sorted.len() / 2 - 1).unwrap() as f64) / 2.0) as f64
         ((f64::from(sorted[sorted.len() / 2]) + f64::from(sorted[sorted.len() / 2 - 1])) / 2.0) as f64
     } else {
-        //*sorted.get(sorted.len() / 2).unwrap() as f64
         f64::from(sorted[sorted.len() / 2])
     }
 }
@@ -354,6 +382,15 @@ impl Specific {
         for mut dp in &mut self.datapoints {
             dp.ttl_to_path_length();
         }
+    }
+
+    // to iterate recursively over self+children:
+    pub fn deep_iter(&self) -> impl Iterator<Item =&'_ Specific> {
+        iter::once(self).chain(self.iter_specs())
+    }
+    fn iter_specs<'a>(&'a self) -> Box<Iterator<Item=&'a Specific> + 'a> {
+        // Box needed: https://github.com/rust-lang/rust/issues/39555
+        Box::new(self.specifics.iter().flat_map(|s| s.deep_iter()))
     }
 
     
@@ -517,7 +554,7 @@ impl Specific {
 
 
 //pub fn specs_to_hier_with_rest_index(specifics: &Vec<Specific>, index: usize) -> (Vec<Specific>, usize) {
-pub fn specs_to_hier_with_rest_index(specifics: &[Specific], index: usize) -> (Vec<Specific>, usize) {
+fn specs_to_hier_with_rest_index(specifics: &[Specific], index: usize) -> (Vec<Specific>, usize) {
     let current_specific: &Specific;
     if let Some((first, rest)) = specifics[index..].split_first() {
         current_specific = first;
