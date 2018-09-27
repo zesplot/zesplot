@@ -1,5 +1,14 @@
 //#![feature(tool_lints)] // clippy
 
+extern crate csv;
+extern crate treebitmap;
+extern crate svg;
+extern crate ipnetwork;
+extern crate rand;
+
+#[macro_use] extern crate clap;
+use clap::{Arg, App};
+
 #[macro_use] extern crate log;
 extern crate simplelog;
 use simplelog::{SimpleLogger, LevelFilter, Config};
@@ -9,32 +18,16 @@ use treemap::*;
 
 mod plot;
 
-use std::collections::HashSet;
-
-extern crate csv;
-
-extern crate hex;
-extern crate treebitmap;
-
 mod input;
 use input::*;
 
 mod output;
 
-
 use std::process::exit;
-
-extern crate svg;
-extern crate ipnetwork;
-extern crate rand;
-#[macro_use] extern crate clap;
-
-use clap::{Arg, App};
-
-
 use std::io::prelude::*;
 use std::fs::File;
 use std::path::Path;
+
 
 fn main() {
 

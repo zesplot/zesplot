@@ -1,4 +1,5 @@
 use treemap::{Specific, DataPoint, PlotInfo, PlotParams};
+use treebitmap::{IpLookupTable};
 
 use std::net::Ipv6Addr;
 use ipnetwork::Ipv6Network;
@@ -9,16 +10,12 @@ use std::collections::{HashMap,HashSet};
 use std::fs::File;
 use std::io::BufReader;
 
-//use super::*; // ugly 'fix' ?
-//use easy_csv::{CSVIterator};
 use std::time::Instant;
 use std::process::exit;
 use std::path::Path;
 
 use csv;
-use hex;
 
-use treebitmap::{IpLookupTable};
 use clap::ArgMatches;
 
 
