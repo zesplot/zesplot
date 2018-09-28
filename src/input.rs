@@ -19,13 +19,10 @@ use csv;
 use clap::ArgMatches;
 
 
-//pub fn process_inputs(matches: &ArgMatches) -> IpLookupTable<Ipv6Addr,Specific> {
 pub fn process_inputs(matches: &ArgMatches) -> (Vec<Specific> , PlotParams) {
 
     let mut datapoints: Vec<DataPoint> = Vec::new();
     let now = Instant::now();
-    //match read_datapoints_from_file(matches.value_of("address-file").unwrap(),
-    //                                matches.value_of("colour-input").unwrap()) {
     match read_datapoints_from_file(&matches) {
         Ok(dps) => datapoints = dps,
         Err(e) => error!("Can not read datapoints from address-file: {}", e),

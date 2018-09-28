@@ -115,9 +115,14 @@ impl PlotParams {
         if matches.is_present("csv-columns"){
             let csv_columns: Vec<&str> = matches.value_of("csv-columns").unwrap().split(',').collect();
             if csv_columns.len() > 1 {
-                colour_metric = csv_columns[1];
+                if matches.is_present("dp-function"){
+                    colour_metric = csv_columns[1];
+                } else {
+                    warn!("No --dp-function passed, ignoring second column '{}' in --csv", csv_columns[1]);
+                }
             }
         }
+
 
         // _if_ there is a second CSV column passed, there MUST be a dp-function.
         // default to DpMean
@@ -129,10 +134,9 @@ impl PlotParams {
                 "var"       => Some(DpFunction::Var),
                 "uniq"      => Some(DpFunction::Uniq),
                 "sum"       => Some(DpFunction::Sum),
-                _           => { warn!("unknown dp-function passed"); Some(DpFunction::Mean) },
+                _           => { warn!("unknown dp-function passed, using 'mean'"); Some(DpFunction::Mean) },
             }
         } else {
-            //Some(DpFunction::Mean)
             None
         };
 
@@ -202,6 +206,12 @@ impl PlotParams {
             .map(dp_fn)
             .collect()
             ;
+
+        // if we have no datapoints, return gracefully
+        if meta_dps.is_empty() {
+            self.colour_scale = plot::ColourScale::new(0.0, 0.0, 0.0);
+            return
+        }
 
         // filter out NaNs and 0: they will be plotted grey anyway,
         // so do not let them influence the colour scale..
@@ -644,6 +654,10 @@ impl Row {
 
 pub fn areas_to_rows(mut areas: Vec<Area>) -> Vec<Row> {
     let mut rows = Vec::new();
+    if areas.is_empty() {
+        error!("Nothing to plot. Did you provide an empty/invalid addresses file while filtering out empty prefixes?");
+        return rows;
+    }
     let remaining_areas = areas.split_off(1);   
                                                
     let first_area = areas.pop().unwrap();

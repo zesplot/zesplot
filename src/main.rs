@@ -56,7 +56,7 @@ fn main() {
                         .arg(Arg::with_name("filter-empty-prefixes")
                              .short("f")
                              .long("filter")
-                             .help("Filter out empty prefixes, only plotting prefixes containing addresses from the --addressess")
+                             .help("Filter out empty prefixes, only plotting prefixes containing addresses from the --addresses. Equal to --filter-threshold 1")
                         )
                         // we might want to merge --filter-threshold  with --filter
                         // can takes_value be optional?
@@ -81,22 +81,23 @@ fn main() {
                         // though, 'hits' might still have a place if we want colouring on hits,
                         // but extra stats in the hover in the .html ...
                         // what to do with hw?
-                        .arg(Arg::with_name("colour-input")
-                             .short("c")
-                             .long("colour-input")
-                             .help("Base the colours on one of the following:
-                                \"hits\" (default)
-                                \"hw\" (average hamming weight in prefix)
-                                \"mss\" (average TCP MSS in prefix)
-                                \"ttl\" (average TTL of responses in prefix, only when using ZMAP input)")
-                             .takes_value(true)
-                             .required(true)
-                        )
+                        //.arg(Arg::with_name("colour-input")
+                        //     .short("c")
+                        //     .long("colour-input")
+                        //     .help("Base the colours on one of the following:
+                        //        \"hits\" (default)
+                        //        \"hw\" (average hamming weight in prefix)
+                        //        \"mss\" (average TCP MSS in prefix)
+                        //        \"ttl\" (average TTL of responses in prefix, only when using ZMAP input)")
+                        //     .takes_value(true)
+                        //     .required(true)
+                        //)
                         .arg(Arg::with_name("csv-columns")
                             .long("csv")
                             .help("When passing csv input in --addresses, use --csv $addr[,$dp] to denote which columns to use for addresses and datapoints, e.g. TTL or MSS") 
                             .takes_value(true)
                         )
+                        //TODO adapt to new ColourScale, need min/median/max
                         .arg(Arg::with_name("scale-max")
                             .long("--scale-max")
                             .help("Overrule maximum of colour scale, only for -c hits")
@@ -104,11 +105,12 @@ fn main() {
                         )
                         .arg(Arg::with_name("dp-function")
                              .long("dp-function")
-                             .help("Base the colour on a function on the datapoints (for TTL or MSS) within a prefix:
+                             .help("Base the colour on a function on the datapoints (passed via the second column in --csv  within a prefix:
                                 \"avg\" mean of the values
                                 \"median\" median of the values
                                 \"var\" variance of the values
-                                \"uniq\" number of unique values"
+                                \"uniq\" number of unique values
+                                \"sum\" sum of values"
                             )
                              .takes_value(true)
                         )
@@ -120,7 +122,7 @@ fn main() {
                         .arg(Arg::with_name("asn-colours")
                             .long("asn-colours")
                             .help("Additional colours for ASNs. File should contain lines, formatted '$ASN $ID'.
-                                Every unique ID will be assigned a colour on the scale.")
+                                Every unique ID will be assigned a separate colour.")
                             .takes_value(true)
                         )
                         //.arg(Arg::with_name("draw-hits")
