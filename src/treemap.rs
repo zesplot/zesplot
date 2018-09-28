@@ -13,6 +13,7 @@ use clap::ArgMatches;
 
 use std::cmp::Ordering;
 use std::iter;
+use std::f64;
 
 #[derive(Debug, Clone)]
 pub struct Specific {
@@ -81,11 +82,6 @@ pub enum DpFunction {
     Sum,
 }
     
-//TODO PlotParams, with all params from the cli
-// should be used to create output_fn
-// and should be sufficient to pass around instead of &matches
-// should also only contain a ColourScale, so all the max_ are not necessary anymore
-
 
 #[derive(Debug)]
 pub struct PlotParams {
@@ -192,18 +188,6 @@ impl PlotParams {
     }
 
     pub fn update_colour_scale(&mut self, specifics: &[Specific]) {
-        // specifics could be nested, so iterate recursively using deep_iter()
-        // 
-        //let mut meta_dps: Vec<f64>  = match self.dp_function {
-        //    Some(DpFunction::Mean)      => specifics.iter().flat_map(|s| s.deep_iter()).map(|s| s.dp_mean()).collect(),
-        //    Some(DpFunction::Median)    => specifics.iter().flat_map(|s| s.deep_iter()).map(|s| s.dp_median()).collect(),
-        //    Some(DpFunction::Var)       => specifics.iter().flat_map(|s| s.deep_iter()).map(|s| s.dp_var()).collect(),
-        //    Some(DpFunction::Uniq)      => specifics.iter().flat_map(|s| s.deep_iter()).map(|s| s.dp_uniq()).collect(),
-        //    Some(DpFunction::Sum)       => specifics.iter().flat_map(|s| s.deep_iter()).map(|s| s.dp_sum()).collect(),
-        //    None                        => specifics.iter().flat_map(|s| s.deep_iter()).map(|s| s.datapoints.len() as f64).collect(),
-        //};
-        //debug!("meta_dps.len(): {}", meta_dps.len());
-
         let dp_fn: fn(&Specific) -> f64 = match self.dp_function {
             Some(DpFunction::Mean)      => Specific::dp_mean,
             Some(DpFunction::Median)    => Specific::dp_median,
@@ -212,17 +196,17 @@ impl PlotParams {
             Some(DpFunction::Sum)       => Specific::dp_sum,
             None                        => Specific::hits2,
         };
+        // specifics could be nested, so iterate recursively using deep_iter()
         let mut meta_dps: Vec<f64>  = specifics.iter()
             .flat_map(|s| s.deep_iter())
             .map(dp_fn)
             .collect()
             ;
 
-        // filter out NaNs (and possibly 0s?): they will be plotted grey anyway, so do not let them influence the colour scale..
-        meta_dps.retain(|f| !f.is_nan());
-
+        // filter out NaNs and 0: they will be plotted grey anyway,
+        // so do not let them influence the colour scale..
+        meta_dps.retain(|f| !f.is_nan() && *f > 0.0);
         meta_dps.sort_by(|a, b| a.partial_cmp(b).unwrap_or(Ordering::Less));
-        //debug!("{:?}", meta_dps);
 
         let (min, max) = (meta_dps[0], meta_dps[meta_dps.len()-1]);
         let median = if meta_dps.len() % 2 == 0 {
@@ -243,162 +227,38 @@ impl PlotParams {
     //}
 }
 
-#[derive(Debug)]
-pub struct PlotInfo {
-    pub max_hits: usize,
-    pub max_dp_avg: f64,
-    pub max_dp_median: f64,
-    pub max_dp_var: f64,
-    pub max_dp_uniq: f64,
-    pub max_dp_sum: f64,
-    pub max_hw_avg: f64,
-    pub colour_mode: ColourMode,
-    pub dp_desc: String,
-    //pub colour_scale: plot::ColourScale,
-    pub asn_colours: HashMap<u32, String>
-}
-
-impl PlotInfo {
-    pub fn new(asn_colours: HashMap<u32, String>) -> PlotInfo {
-        PlotInfo { 
-            max_hits: 0,
-            max_dp_avg: 0f64,
-            max_dp_median: 0f64,
-            max_dp_var: 0f64,
-            max_dp_uniq: 0f64,
-            max_dp_sum: 0f64,
-            max_hw_avg: 0f64,
-            colour_mode: ColourMode::Hits,
-            dp_desc: "".to_string(),
-            asn_colours
-        }
-    }
-    pub fn set_maxes(&mut self, table: &IpLookupTable<Ipv6Addr,Specific>, matches: &ArgMatches) {
-        for (_,_,s) in table.iter() {
-            if s.datapoints.len() > self.max_hits {
-                //max_hits = s.datapoints.len();
-                self.max_hits = s.datapoints.len();
-            }
-            // based on dp.meta:
-            if s.dp_avg() > self.max_dp_avg {
-                self.max_dp_avg = s.dp_avg();
-            }
-            if s.dp_median() > self.max_dp_median {
-                self.max_dp_median = s.dp_median();
-            }
-            if s.dp_var() > self.max_dp_var {
-                self.max_dp_var = s.dp_var();
-            }
-            if s.dp_uniq() > self.max_dp_uniq {
-                self.max_dp_uniq = s.dp_uniq();
-            }
-            if s.dp_sum() > self.max_dp_sum {
-                self.max_dp_sum = s.dp_sum();
-            }
-            // hamming weight:
-            if s.hw_avg() > self.max_hw_avg {
-                self.max_hw_avg = s.hw_avg();
-            }
-        }
-        info!("maximums (for --scale-max):");
-        info!("max_hits: {}", self.max_hits);
-        if matches.is_present("scale-max") {
-            warn!("overruling max_hits, was {}, now is {}", self.max_hits, matches.value_of("scale-max").unwrap());
-            self.max_hits = matches.value_of("scale-max").unwrap().parse::<usize>().unwrap();
-        }
-
-        self.dp_desc = if matches.is_present("legend-label") {
-            matches.value_of("legend-label").unwrap().to_string()
-        } else {
-            match matches.value_of("colour-input").unwrap_or(plot::COLOUR_INPUT) {
-                "ttl"   => "TTL".to_string(),
-                "mss"   => "TCP MSS".to_string(),
-                "dns"   => "DNS RA bit".to_string(),
-                "hw"    => {self.colour_mode = ColourMode::HwAvg;  "Hamming Weight".to_string()},
-                "hits"|_ => "Hits".to_string()
-            }
-        };
-
-        if matches.is_present("dp-function") {
-            self.colour_mode = match matches.value_of("dp-function").unwrap() {
-                "avg" => ColourMode::DpAvg,
-                "median" => ColourMode::DpMedian,
-                "var" => ColourMode::DpVar,
-                "uniq" => ColourMode::DpUniq,
-                "sum" => ColourMode::DpSum,
-                _   =>  ColourMode::Hits,
-            };
-        } else if matches.is_present("asn-colours") {
-            self.colour_mode = ColourMode::Asn;
-        } else if self.dp_desc == "TTL" || self.dp_desc == "TCP MSS" { //ugly..
-            self.colour_mode = ColourMode::DpAvg;
-        }
-
-
-
-    }
-}
-
-fn var(s: &[u32]) -> f64 {
-    if s.len() < 2 {
-        return 0.0;
-    }
-    let sum: u32 = s.iter().sum();
-    let mean = f64::from(sum) / s.len() as f64;
-    //let var = s.iter().fold(0.0, |var, dp| var as f64 + (*dp as f64 - mean).powf(2.0) ) / (s.len() -1) as f64;
-    //var
-    s.iter().fold(0.0, |var, dp| var as f64 + (f64::from(*dp) - mean).powf(2.0) ) / (s.len() -1) as f64
-}
-
-
-fn median(s: &[u32]) -> f64 {
-    if s.is_empty() {
-        return 0.0;
-    }
-    let mut sorted = s.to_owned();
-    sorted.sort();
-    if sorted.len() % 2  == 0 {
-        ((f64::from(sorted[sorted.len() / 2]) + f64::from(sorted[sorted.len() / 2 - 1])) / 2.0) as f64
-    } else {
-        f64::from(sorted[sorted.len() / 2])
-    }
-}
-
-
-fn mean(s: &[u32]) -> f64 {
-    //if s.is_empty() {
-    //    return 0.0;
-    //}
-    f64::from(s.iter().sum::<u32>()) / s.len() as f64
-}
-
 
 impl Specific {
     pub fn push_dp(&mut self, dp: super::DataPoint) -> () {
         self.datapoints.push(dp);
     }
 
-    // TODO remove and replace with dp_mean
-    pub fn dp_avg(&self) -> f64 {
-        let sum = self.datapoints.iter().fold(0, |s, i| s + i.meta);
-        f64::from(sum) / self.datapoints.len() as f64
-    }
+    // Datapoint / Stat functions
 
-    // TODO re-use dp_sum here
     pub fn dp_mean(&self) -> f64 {
-        //if self.datapoints.is_empty() {
-        //    return 0.0;
-        //}
-        f64::from(self.datapoints.iter().map(|dp| dp.meta).sum::<u32>()) / self.datapoints.len() as f64
-            //mean(&self.datapoints.iter().map(|dp| dp.meta).collect::<Vec<u32>>().as_slice())
+        &self.dp_sum() / self.datapoints.len() as f64
     }
 
     pub fn dp_var(&self) -> f64 {
-        var(&self.datapoints.iter().map(|dp| dp.meta).collect::<Vec<u32>>().as_slice())
+        if self.datapoints.len() < 2 {
+            return f64::NAN;
+        }
+        let mean = self.dp_mean();
+        self.datapoints.iter().map(|dp| dp.meta).fold(0.0, |var, dp|
+            var as f64 + (f64::from(dp) - mean).powf(2.0) ) / (self.datapoints.len() -1) as f64
     }
 
     pub fn dp_median(&self) -> f64 {
-        median(&self.datapoints.iter().map(|dp| dp.meta).collect::<Vec<u32>>().as_slice())
+        if self.datapoints.is_empty() {
+            return f64::NAN;
+        }
+        let mut sorted = self.datapoints.iter().map(|dp| dp.meta).collect::<Vec<u32>>();
+        sorted.sort();
+        if sorted.len() % 2  == 0 {
+            ((f64::from(sorted[sorted.len() / 2]) + f64::from(sorted[sorted.len() / 2 - 1])) / 2.0) as f64
+        } else {
+            f64::from(sorted[sorted.len() / 2])
+        }
     }
 
     pub fn dp_uniq(&self) -> f64 {
@@ -409,11 +269,12 @@ impl Specific {
         uniq_meta.len() as f64
     }
 
-    // TODO test and use the sum from dp_mean
     pub fn dp_sum(&self) -> f64 {
-        //self.datapoints.iter().fold(0f64, |s, i| s + i.meta as f64)
         f64::from(self.datapoints.iter().map(|e| e.meta).sum::<u32>())
     }
+
+
+    // Other functions
 
     pub fn hw_avg(&self) -> f64 {
         let sum = self.datapoints.iter().fold(0, |s, i| s + i.hamming_weight(self.prefix_len()));
@@ -436,6 +297,8 @@ impl Specific {
         Box::new(self.specifics.iter().flat_map(|s| s.deep_iter()))
     }
 
+    // TODO: use deep_iter ?
+    // TODO: get rid of usize
     pub fn all_hits(&self) -> usize {
         self.hits() + self.hits_in_specifics()
     }
@@ -503,7 +366,9 @@ impl Specific {
             .set("data-hits", self.all_hits())
             //.set("data-dp-desc", plot_info.dp_desc.clone())
             .set("data-dp-desc", plot_params.legend_label.clone())
-            .set("data-dp-avg", format!("{:.1}", self.dp_avg()))
+            //TODO: only set these attributes if actual meta data was provided for input
+            // i.e. if there was a second CSV column
+            .set("data-dp-mean", format!("{:.1}", self.dp_mean()))
             .set("data-dp-median", format!("{:.1}", self.dp_median()))
             .set("data-dp-var", format!("{:.1}", self.dp_var()))
             .set("data-dp-uniq", format!("{:.1}", self.dp_uniq()))
@@ -511,17 +376,6 @@ impl Specific {
             .set("data-hw-avg", format!("{:.1}", self.hw_avg()))
             ;
 
-        //match plot_info.colour_mode {
-        //    ColourMode::Hits => r.assign("fill", colour(self.hits() as u32, plot_info.max_hits as u32)),
-        //    ColourMode::DpAvg => r.assign("fill", colour(self.dp_avg() as u32, plot_info.max_dp_avg as u32)),
-        //    ColourMode::DpMedian => r.assign("fill", colour(self.dp_avg() as u32, plot_info.max_dp_median as u32)),
-        //    ColourMode::DpVar => r.assign("fill", colour(self.dp_var() as u32, plot_info.max_dp_var as u32)),
-        //    ColourMode::DpUniq => r.assign("fill", colour(self.dp_uniq() as u32, plot_info.max_dp_uniq as u32)),
-        //    ColourMode::DpSum => r.assign("fill", colour(self.dp_sum() as u32, plot_info.max_dp_sum as u32)),
-        //    ColourMode::HwAvg => r.assign("fill", colour(self.hw_avg() as u32, plot_info.max_hw_avg as u32)),
-        //    ColourMode::Asn => r.assign("fill", colour_from_map(self.asn(), &plot_info.asn_colours))
-        //}
-        
         let dp_fn: fn(&Specific) -> f64 = match plot_params.dp_function {
             Some(DpFunction::Mean)      => Specific::dp_mean,
             Some(DpFunction::Median)    => Specific::dp_median,
@@ -586,8 +440,6 @@ impl Specific {
 
     }
 
-//#[allow(clippy::too_many_arguments)]
-    //pub fn rects_in_specifics(&self, x: f64, y: f64, w: f64, h: f64, w_factor: f64, h_factor: f64, plot_info: &PlotInfo) -> Vec<super::Rectangle> {
     pub fn rects_in_specifics(&self, t: Turtle, w_factor: f64, h_factor: f64, plot_params: &PlotParams) -> Vec<Rectangle> {
         if self.specifics.is_empty() {
             return vec![]
@@ -615,13 +467,11 @@ impl Specific {
 }
 
 
-//pub fn specs_to_hier_with_rest_index(specifics: &Vec<Specific>, index: usize) -> (Vec<Specific>, usize) {
 fn specs_to_hier_with_rest_index(specifics: &[Specific], index: usize) -> (Vec<Specific>, usize) {
     let current_specific: &Specific;
     if let Some((first, rest)) = specifics[index..].split_first() {
         current_specific = first;
         if rest.is_empty() {
-            //println!("NO REST, returning {}", first.network.ip());
             return (vec![first.clone()], 1);
         }
 
@@ -629,11 +479,9 @@ fn specs_to_hier_with_rest_index(specifics: &[Specific], index: usize) -> (Vec<S
         let mut consumed_specs = 1;
         for s in rest.iter() {
             if current_specific.network.contains(s.network.ip()) {
-                //println!("  in current: {}", s.network.ip());
                 nested_specs.push(s.clone());
                 consumed_specs += 1;
             } else {
-                //println!("  NOT in current: {}", s.network.ip());
                 break;
             }
 
@@ -649,7 +497,6 @@ fn specs_to_hier_with_rest_index(specifics: &[Specific], index: usize) -> (Vec<S
     (vec![], 0)
 }
 
-//pub fn specs_to_hier(specifics: &Vec<Specific>) -> Vec<Specific> {
 pub fn specs_to_hier(specifics: &[Specific]) -> Vec<Specific> {
     let mut done = false;
     let mut all_results: Vec<Specific> = vec![];
@@ -660,7 +507,6 @@ pub fn specs_to_hier(specifics: &[Specific]) -> Vec<Specific> {
     }
     
     if specifics.len() == 1 {
-        //return specifics.clone();
         return specifics.to_owned();
     }
     
@@ -907,6 +753,88 @@ fn colour_from_map(asn: u32, mapping: &HashMap<u32, String>) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn gen_specifics() -> Vec<Specific> {
+        assert!(false);
+        vec![
+            ]
+    }
+
+    fn gen_dps() -> Vec<DataPoint> {
+        (1..=10).map(|m|
+            DataPoint { ip6: "2001:db8::1".parse().unwrap(), meta:  m as u32 },
+        ).collect()
+    }
+    fn gen_dps2() -> Vec<DataPoint> {
+        vec![1,1,1,1,1,1,1,2,3,10].into_iter().map(|m|
+            DataPoint { ip6: "2001:db8::1".parse().unwrap(), meta:  m as u32 },
+        ).collect()
+    }
+
+    fn gen_specific() -> Specific {
+        Specific {
+            network: "2001:db8::/32".parse::<Ipv6Network>().unwrap(),
+            asn: "TEST".to_string(),
+            datapoints: gen_dps(),
+            specifics: vec![],
+        }
+    }
+    fn gen_specific2() -> Specific {
+        Specific {
+            network: "2001:db8::/32".parse::<Ipv6Network>().unwrap(),
+            asn: "TEST".to_string(),
+            datapoints: gen_dps2(),
+            specifics: vec![],
+        }
+    }
+    fn gen_specific_no_dp() -> Specific {
+        Specific {
+            network: "2001:db8::/32".parse::<Ipv6Network>().unwrap(),
+            asn: "TEST".to_string(),
+            datapoints: vec![],
+            specifics: vec![],
+        }
+    }
+
+    #[test]
+    fn dp_mean() {
+        assert!(gen_specific_no_dp().dp_mean().is_nan());
+        assert_eq!(5.5, gen_specific().dp_mean());
+        assert_eq!(2.2, gen_specific2().dp_mean());
+    }
+
+    #[test]
+    fn dp_median() {
+        assert!(gen_specific_no_dp().dp_median().is_nan());
+        assert_eq!(5.5, gen_specific().dp_median());
+        assert_eq!(1.0, gen_specific2().dp_median());
+    }
+
+    #[test]
+    fn dp_var() {
+        assert!(gen_specific_no_dp().dp_var().is_nan());
+        assert_eq!(9.1667, (gen_specific().dp_var() * 10_000.0).round() / 10_000.0);
+        assert_eq!(7.9556, (gen_specific2().dp_var() * 10_000.0).round() / 10_000.0);
+    }
+
+    #[test]
+    fn dp_uniq() {
+        assert_eq!(0.0,  gen_specific_no_dp().dp_uniq());
+        assert_eq!(10.0, gen_specific().dp_uniq());
+        assert_eq!(4.0, gen_specific2().dp_uniq());
+    }
+
+    #[test]
+    fn dp_sum() {
+        assert_eq!(0.0,  gen_specific_no_dp().dp_sum());
+        assert_eq!(55.0, gen_specific().dp_sum());
+        assert_eq!(22.0, gen_specific2().dp_sum());
+    }
+
+
+    // ---------------------------
+
+
     #[test]
     fn hamming_weight() {
         let dp = super::DataPoint { ip6: "2001:db8::1".parse().unwrap(), meta: 0 };
@@ -950,48 +878,4 @@ mod tests {
         dp.ttl_to_path_length();
         assert_eq!(dp.meta, 35);
     }
-    #[test]
-    fn test_var() {
-        let s: Vec<u32> = vec![];
-        assert_eq!(var(&s), 0.0);
-
-        let s: Vec<u32> = vec![1];
-        assert_eq!(var(&s), 0.0);
-
-        let s: Vec<u32> = vec![1,2,3];
-        assert_eq!(var(&s), 1.0);
-
-        let s: Vec<u32> = vec![10,20,30];
-        assert_eq!(var(&s), 100.0);
-
-        let s: Vec<u32> = vec![10,10,10,10,10,10,10,11];
-        assert_eq!(var(&s), 0.125);
-    }
-
-    #[test]
-    fn test_median() {
-        let s: Vec<u32> = vec![];
-        assert_eq!(median(&s), 0.0);
-
-        let s: Vec<u32> = vec![1];
-        assert_eq!(median(&s), 1.0);
-
-        let s: Vec<u32> = vec![0, 1];
-        assert_eq!(median(&s), 0.5);
-
-        let s: Vec<u32> = vec![0, 1, 2];
-        assert_eq!(median(&s), 1.0);
-
-        let s: Vec<u32> = vec![9, 9, 8, 3, 1];
-        assert_eq!(median(&s), 8.0);
-
-        let s: Vec<u32> = vec![9, 8, 3, 1];
-        assert_eq!(median(&s), 5.5);
-    }
-    #[test]
-    fn test_mean() {
-        assert_eq!(2.0, mean(&vec![2,2,2]));
-        assert_eq!(0.0, mean(&vec![]))
-    }
-
 }

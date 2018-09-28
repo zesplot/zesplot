@@ -173,7 +173,7 @@ fn main() {
     info!("-- reading input files");
 
 
-    let (mut specifics, plot_info, mut plot_params) = process_inputs(&matches);
+    let (mut specifics, mut plot_params) = process_inputs(&matches);
 
     specifics = specs_to_hier(&specifics);
     // without hierarchy: TODO make this a switch
@@ -200,7 +200,6 @@ fn main() {
     // re-calculate colour scale
     plot_params.update_colour_scale(&specifics);
     debug!("post filter plot_params: {:#?}", plot_params);
-    debug!("post filter plot_info: {:#?}", plot_info);
     
 
     // we calculate the total_area after turning the specifics into an hierarchical model

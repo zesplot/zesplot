@@ -1,4 +1,4 @@
-use treemap::{Specific, DataPoint, PlotInfo, PlotParams};
+use treemap::{Specific, DataPoint, PlotParams};
 use treebitmap::{IpLookupTable};
 
 use std::net::Ipv6Addr;
@@ -20,7 +20,7 @@ use clap::ArgMatches;
 
 
 //pub fn process_inputs(matches: &ArgMatches) -> IpLookupTable<Ipv6Addr,Specific> {
-pub fn process_inputs(matches: &ArgMatches) -> (Vec<Specific> , PlotInfo, PlotParams) {
+pub fn process_inputs(matches: &ArgMatches) -> (Vec<Specific> , PlotParams) {
 
     let mut datapoints: Vec<DataPoint> = Vec::new();
     let now = Instant::now();
@@ -82,22 +82,9 @@ pub fn process_inputs(matches: &ArgMatches) -> (Vec<Specific> , PlotInfo, PlotPa
         HashMap::new()
     };
 
-    let mut plot_info = PlotInfo::new(asn_colours.clone());
-    plot_info.set_maxes(&table, &matches);
-
-
-
-
-
-    //TODO:
-    // create PlotParams and return that instead of PlotInfo
     let plot_params = PlotParams::new(&table, &matches);
 
     debug!("{:#?}", plot_params);
-
-
-    //TODO: put unsized into plot_info ?
-    //let unsized_rectangles = matches.is_present("unsized-rectangles");
 
     let mut specifics: Vec<Specific>  = table.into_iter().map(|(_,_,s)| s).collect();
     let mut specifics_with_hits = 0;
@@ -119,7 +106,7 @@ pub fn process_inputs(matches: &ArgMatches) -> (Vec<Specific> , PlotInfo, PlotPa
         warn!("filtered {} specifics, left: {}", pre_filter_len_specs - specifics.len(), specifics.len());
     }
 
-    (specifics, plot_info, plot_params)
+    (specifics, plot_params)
 }
 
 

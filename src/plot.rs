@@ -4,7 +4,7 @@ use svg::node::element::{Rectangle, Text, Group, Definitions, LinearGradient, St
 use svg::node::Text as Tekst;
 
 use clap::ArgMatches;
-use treemap::{PlotParams,PlotInfo,ColourMode,Row};
+use treemap::{PlotParams,ColourMode,Row};
 
 pub const WIDTH: f64 = 160.0;
 pub const HEIGHT: f64 = 100.0;
@@ -129,6 +129,9 @@ pub fn draw_svg(matches: &ArgMatches, rows: Vec<Row>, plot_params: &PlotParams) 
     document
 
 }
+
+
+/*
 
 pub fn legend(plot_info: &PlotInfo) -> (Definitions, Group) {
 
@@ -361,3 +364,4 @@ pub fn tick_label(v: f64) -> String {
         _ => format!("{:.0}", v)
     }
 }
+*/
