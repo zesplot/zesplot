@@ -60,6 +60,7 @@ impl DataPoint {
     }
 }
 
+#[derive(Debug)]
 pub enum ColourMode {
     Hits,
     DpAvg,
@@ -122,16 +123,20 @@ impl PlotParams {
             }
         }
 
-        let dp_function = if matches.is_present("dp-function") {
+        // _if_ there is a second CSV column passed, there MUST be a dp-function.
+        // default to DpMean
+
+        let dp_function = if matches.is_present("dp-function"){
             match matches.value_of("dp-function").unwrap() {
                 "mean"      => Some(DpFunction::Mean),
                 "median"    => Some(DpFunction::Median),
                 "var"       => Some(DpFunction::Var),
                 "uniq"      => Some(DpFunction::Uniq),
                 "sum"       => Some(DpFunction::Sum),
-                _           => { warn!("unknown dp-function passed"); None },
+                _           => { warn!("unknown dp-function passed"); Some(DpFunction::Mean) },
             }
         } else {
+            //Some(DpFunction::Mean)
             None
         };
 
@@ -151,6 +156,11 @@ impl PlotParams {
         };
 
         let show_legend = !matches.is_present("hide-legend"); //TODO implement in clap
+
+        // FIXME if we do not filter, make sure filter_threshold in PlotParams is 0
+        // otherwise things just get confusing
+        // so let --filter be an alias for --filter-threshold 1,
+        // and check on the value of ft instead of the boolean 'filter'
         let filter_threshold = value_t!(matches.value_of("filter-threshold"), u64).unwrap_or_else(|_| 1);
 
         // determine min/max/medium for either hits or dp-function
@@ -167,7 +177,7 @@ impl PlotParams {
         meta_dps.sort_by(|a, b| a.partial_cmp(b).unwrap_or(Ordering::Less));
         let (min, median, max) = (meta_dps[0], meta_dps[meta_dps.len()/2], meta_dps[meta_dps.len()-1]);
             
-        let colour_scale = plot::ColourScale::new(min as u64, median as u64, max as u64);
+        let colour_scale = plot::ColourScale::new(min, median, max);
 
         PlotParams {
             sized,
@@ -184,16 +194,36 @@ impl PlotParams {
     pub fn update_colour_scale(&mut self, specifics: &[Specific]) {
         // specifics could be nested, so iterate recursively using deep_iter()
         // 
-        let mut meta_dps: Vec<f64>  = match self.dp_function {
-            Some(DpFunction::Mean)      => specifics.iter().flat_map(|s| s.deep_iter()).map(|s| s.dp_mean()).collect(),
-            Some(DpFunction::Median)    => specifics.iter().flat_map(|s| s.deep_iter()).map(|s| s.dp_median()).collect(),
-            Some(DpFunction::Var)       => specifics.iter().flat_map(|s| s.deep_iter()).map(|s| s.dp_var()).collect(),
-            Some(DpFunction::Uniq)      => specifics.iter().flat_map(|s| s.deep_iter()).map(|s| s.dp_uniq()).collect(),
-            Some(DpFunction::Sum)       => specifics.iter().flat_map(|s| s.deep_iter()).map(|s| s.dp_sum()).collect(),
-            None                        => specifics.iter().flat_map(|s| s.deep_iter()).map(|s| s.datapoints.len() as f64).collect(),
+        //let mut meta_dps: Vec<f64>  = match self.dp_function {
+        //    Some(DpFunction::Mean)      => specifics.iter().flat_map(|s| s.deep_iter()).map(|s| s.dp_mean()).collect(),
+        //    Some(DpFunction::Median)    => specifics.iter().flat_map(|s| s.deep_iter()).map(|s| s.dp_median()).collect(),
+        //    Some(DpFunction::Var)       => specifics.iter().flat_map(|s| s.deep_iter()).map(|s| s.dp_var()).collect(),
+        //    Some(DpFunction::Uniq)      => specifics.iter().flat_map(|s| s.deep_iter()).map(|s| s.dp_uniq()).collect(),
+        //    Some(DpFunction::Sum)       => specifics.iter().flat_map(|s| s.deep_iter()).map(|s| s.dp_sum()).collect(),
+        //    None                        => specifics.iter().flat_map(|s| s.deep_iter()).map(|s| s.datapoints.len() as f64).collect(),
+        //};
+        //debug!("meta_dps.len(): {}", meta_dps.len());
+
+        let dp_fn: fn(&Specific) -> f64 = match self.dp_function {
+            Some(DpFunction::Mean)      => Specific::dp_mean,
+            Some(DpFunction::Median)    => Specific::dp_median,
+            Some(DpFunction::Var)       => Specific::dp_var,
+            Some(DpFunction::Uniq)      => Specific::dp_uniq,
+            Some(DpFunction::Sum)       => Specific::dp_sum,
+            None                        => Specific::hits2,
         };
+        let mut meta_dps: Vec<f64>  = specifics.iter()
+            .flat_map(|s| s.deep_iter())
+            .map(dp_fn)
+            .collect()
+            ;
+
+        // filter out NaNs (and possibly 0s?): they will be plotted grey anyway, so do not let them influence the colour scale..
+        meta_dps.retain(|f| !f.is_nan());
 
         meta_dps.sort_by(|a, b| a.partial_cmp(b).unwrap_or(Ordering::Less));
+        //debug!("{:?}", meta_dps);
+
         let (min, max) = (meta_dps[0], meta_dps[meta_dps.len()-1]);
         let median = if meta_dps.len() % 2 == 0 {
             (meta_dps[meta_dps.len()/2] + meta_dps[meta_dps.len()/2 - 1]) / 2.0
@@ -201,7 +231,7 @@ impl PlotParams {
             meta_dps[meta_dps.len()/2]
         };
 
-        self.colour_scale = plot::ColourScale::new(min as u64, median as u64, max as u64);
+        self.colour_scale = plot::ColourScale::new(min, median, max);
     }
 
 
@@ -213,6 +243,7 @@ impl PlotParams {
     //}
 }
 
+#[derive(Debug)]
 pub struct PlotInfo {
     pub max_hits: usize,
     pub max_dp_avg: f64,
@@ -334,6 +365,14 @@ fn median(s: &[u32]) -> f64 {
 }
 
 
+fn mean(s: &[u32]) -> f64 {
+    //if s.is_empty() {
+    //    return 0.0;
+    //}
+    f64::from(s.iter().sum::<u32>()) / s.len() as f64
+}
+
+
 impl Specific {
     pub fn push_dp(&mut self, dp: super::DataPoint) -> () {
         self.datapoints.push(dp);
@@ -347,7 +386,11 @@ impl Specific {
 
     // TODO re-use dp_sum here
     pub fn dp_mean(&self) -> f64 {
-        f64::from(self.datapoints.iter().map(|e| e.meta).sum::<u32>()) / self.datapoints.len() as f64
+        //if self.datapoints.is_empty() {
+        //    return 0.0;
+        //}
+        f64::from(self.datapoints.iter().map(|dp| dp.meta).sum::<u32>()) / self.datapoints.len() as f64
+            //mean(&self.datapoints.iter().map(|dp| dp.meta).collect::<Vec<u32>>().as_slice())
     }
 
     pub fn dp_var(&self) -> f64 {
@@ -393,13 +436,16 @@ impl Specific {
         Box::new(self.specifics.iter().flat_map(|s| s.deep_iter()))
     }
 
-    
     pub fn all_hits(&self) -> usize {
         self.hits() + self.hits_in_specifics()
     }
 
     pub fn hits(&self) -> usize {
         self.datapoints.len()
+    }
+
+    pub fn hits2(&self) -> f64 {
+        self.datapoints.len() as f64
     }
 
     pub fn hits_in_specifics(&self) -> usize {
@@ -441,7 +487,7 @@ impl Specific {
         }
     }
 
-    pub fn to_rect(&self, t: Turtle, w_factor: f64, h_factor: f64, plot_info: &PlotInfo) -> Rectangle {
+    pub fn to_rect(&self, t: Turtle, w_factor: f64, h_factor: f64, plot_params: &PlotParams) -> Rectangle {
         let Turtle {x, y, w, h} = t;
         let mut r = Rectangle::new()
             .set("x", x)
@@ -455,7 +501,8 @@ impl Specific {
             .set("data-prefix", self.network.to_string())
             .set("data-self-hits", self.hits())
             .set("data-hits", self.all_hits())
-            .set("data-dp-desc", plot_info.dp_desc.clone())
+            //.set("data-dp-desc", plot_info.dp_desc.clone())
+            .set("data-dp-desc", plot_params.legend_label.clone())
             .set("data-dp-avg", format!("{:.1}", self.dp_avg()))
             .set("data-dp-median", format!("{:.1}", self.dp_median()))
             .set("data-dp-var", format!("{:.1}", self.dp_var()))
@@ -464,17 +511,32 @@ impl Specific {
             .set("data-hw-avg", format!("{:.1}", self.hw_avg()))
             ;
 
-        match plot_info.colour_mode {
-            ColourMode::Hits => r.assign("fill", colour(self.hits() as u32, plot_info.max_hits as u32)),
-            ColourMode::DpAvg => r.assign("fill", colour(self.dp_avg() as u32, plot_info.max_dp_avg as u32)),
-            ColourMode::DpMedian => r.assign("fill", colour(self.dp_avg() as u32, plot_info.max_dp_median as u32)),
-            ColourMode::DpVar => r.assign("fill", colour(self.dp_var() as u32, plot_info.max_dp_var as u32)),
-            ColourMode::DpUniq => r.assign("fill", colour(self.dp_uniq() as u32, plot_info.max_dp_uniq as u32)),
-            ColourMode::DpSum => r.assign("fill", colour(self.dp_sum() as u32, plot_info.max_dp_sum as u32)),
-            ColourMode::HwAvg => r.assign("fill", colour(self.hw_avg() as u32, plot_info.max_hw_avg as u32)),
-            ColourMode::Asn => r.assign("fill", colour_from_map(self.asn(), &plot_info.asn_colours))
-        }
+        //match plot_info.colour_mode {
+        //    ColourMode::Hits => r.assign("fill", colour(self.hits() as u32, plot_info.max_hits as u32)),
+        //    ColourMode::DpAvg => r.assign("fill", colour(self.dp_avg() as u32, plot_info.max_dp_avg as u32)),
+        //    ColourMode::DpMedian => r.assign("fill", colour(self.dp_avg() as u32, plot_info.max_dp_median as u32)),
+        //    ColourMode::DpVar => r.assign("fill", colour(self.dp_var() as u32, plot_info.max_dp_var as u32)),
+        //    ColourMode::DpUniq => r.assign("fill", colour(self.dp_uniq() as u32, plot_info.max_dp_uniq as u32)),
+        //    ColourMode::DpSum => r.assign("fill", colour(self.dp_sum() as u32, plot_info.max_dp_sum as u32)),
+        //    ColourMode::HwAvg => r.assign("fill", colour(self.hw_avg() as u32, plot_info.max_hw_avg as u32)),
+        //    ColourMode::Asn => r.assign("fill", colour_from_map(self.asn(), &plot_info.asn_colours))
+        //}
+        
+        let dp_fn: fn(&Specific) -> f64 = match plot_params.dp_function {
+            Some(DpFunction::Mean)      => Specific::dp_mean,
+            Some(DpFunction::Median)    => Specific::dp_median,
+            Some(DpFunction::Var)       => Specific::dp_var,
+            Some(DpFunction::Uniq)      => Specific::dp_uniq,
+            Some(DpFunction::Sum)       => Specific::dp_sum,
+            None                        => Specific::hits2,
+        };
+        //debug!("dp_fn(): {}", dp_fn(&self));
+        //debug!("dp_mean(): {}", &self.dp_mean());
+        let (h,s,l) = plot_params.colour_scale.get(dp_fn(&self));
+        //debug!("hsl: {}, {}, {}", h, s, l);
+        r.assign("fill", format!("hsl({}, {}%, {}%)", h, s, l));
         r
+
 
         // TODO: re-implement the drawing of addresses as dots within the prefix rectangle
         // NB: the stuff below was an earlier attempt based on the OLD data model!
@@ -526,7 +588,7 @@ impl Specific {
 
 //#[allow(clippy::too_many_arguments)]
     //pub fn rects_in_specifics(&self, x: f64, y: f64, w: f64, h: f64, w_factor: f64, h_factor: f64, plot_info: &PlotInfo) -> Vec<super::Rectangle> {
-    pub fn rects_in_specifics(&self, t: Turtle, w_factor: f64, h_factor: f64, plot_info: &PlotInfo) -> Vec<Rectangle> {
+    pub fn rects_in_specifics(&self, t: Turtle, w_factor: f64, h_factor: f64, plot_params: &PlotParams) -> Vec<Rectangle> {
         if self.specifics.is_empty() {
             return vec![]
         }
@@ -535,19 +597,19 @@ impl Specific {
         let mut results = Vec::new();
         let mut x = x;
         for s in &self.specifics {
-            results.push(s.to_rect(Turtle{x, y, w, h}, w_factor, h_factor, plot_info));
+            results.push(s.to_rect(Turtle{x, y, w, h}, w_factor, h_factor, plot_params));
             let sub_w_factor  = w_factor; 
-            results.append(&mut s.rects_in_specifics(Turtle{x, y, w, h}, sub_w_factor, h_factor / 2.0, plot_info));
+            results.append(&mut s.rects_in_specifics(Turtle{x, y, w, h}, sub_w_factor, h_factor / 2.0, plot_params));
             x += w * w_factor; 
         }
 
     results
     }
 
-    pub fn all_rects(&self, area: &Area, plot_info: &PlotInfo) -> Vec<Rectangle> {
+    pub fn all_rects(&self, area: &Area, plot_params: &PlotParams) -> Vec<Rectangle> {
         let t = Turtle {x: area.x, y: area.y, w: area.w, h: area.h};
-        let mut result = vec![self.to_rect(t, 1.0, 1.0, plot_info)];
-        result.append(&mut self.rects_in_specifics(t, 1.0, 0.5, plot_info));
+        let mut result = vec![self.to_rect(t, 1.0, 1.0, plot_params)];
+        result.append(&mut self.rects_in_specifics(t, 1.0, 0.5, plot_params));
         result
     }
 }
@@ -925,6 +987,11 @@ mod tests {
 
         let s: Vec<u32> = vec![9, 8, 3, 1];
         assert_eq!(median(&s), 5.5);
+    }
+    #[test]
+    fn test_mean() {
+        assert_eq!(2.0, mean(&vec![2,2,2]));
+        assert_eq!(0.0, mean(&vec![]))
     }
 
 }

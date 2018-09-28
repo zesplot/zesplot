@@ -4,7 +4,7 @@ use svg::node::element::{Rectangle, Text, Group, Definitions, LinearGradient, St
 use svg::node::Text as Tekst;
 
 use clap::ArgMatches;
-use treemap::{PlotInfo,ColourMode,Row};
+use treemap::{PlotParams,PlotInfo,ColourMode,Row};
 
 pub const WIDTH: f64 = 160.0;
 pub const HEIGHT: f64 = 100.0;
@@ -24,13 +24,13 @@ pub const LEGEND_MARGIN_W: f64 = LEGEND_GRADIENT_WIDTH + 2.0*LEGEND_GRADIENT_MAR
 
 #[derive(Debug)]
 pub struct ColourScale {
-    min: u64,
-    median: u64,
-    max: u64,
+    min: f64,
+    median: f64,
+    max: f64,
 }
 
 impl ColourScale {
-    pub fn new(min: u64, median: u64, max: u64) -> ColourScale {
+    pub fn new(min: f64, median: f64, max: f64) -> ColourScale {
         ColourScale {
             min,
             median,
@@ -42,9 +42,14 @@ impl ColourScale {
     // returns hsl format
     // h ==   0 -> red
     // h == 240 -> blue
-    pub fn get(&self, dp: u64) -> (f64,u32,u32) {
-        if dp == 0 {
+    pub fn get(&self, dp: f64) -> (f64,u32,u32) {
+        //debug!("ColourScale::get: {}", dp);
+        //debug!("ColourScale: {:?}", &self);
+        if dp == 0.0 || dp.is_nan() {
             return (180_f64, 10, 75); // grey
+        }
+        if self.min == self.median && self.median == self.max {
+            return (120_f64, 80, 50); // green ('mid of scale')
         }
         let c = if dp >= self.median {
             - ((120_f64 / (self.max - self.median) as f64) * (dp - self.median) as f64)
@@ -55,7 +60,7 @@ impl ColourScale {
     }
 }
 
-pub fn draw_svg(matches: &ArgMatches, rows: Vec<Row>, plot_info: &PlotInfo) -> svg::Document {
+pub fn draw_svg(matches: &ArgMatches, rows: Vec<Row>, plot_params: &PlotParams) -> svg::Document {
     let mut groups: Vec<Group> = Vec::new();
     let mut areas_plotted: u64 = 0;
 
@@ -71,7 +76,7 @@ pub fn draw_svg(matches: &ArgMatches, rows: Vec<Row>, plot_info: &PlotInfo) -> s
                 //.set("data-something", area.specific.asn.to_string())
                 ;
 
-            let sub_rects = area.specific.all_rects(&area, &plot_info);
+            let sub_rects = area.specific.all_rects(&area, &plot_params);
             for sub_rect in sub_rects {
                 group.append(sub_rect);
             }
@@ -98,11 +103,15 @@ pub fn draw_svg(matches: &ArgMatches, rows: Vec<Row>, plot_info: &PlotInfo) -> s
         }
     }
 
+
+    /* FIXME disabled while refactoring to PlotParams
+
     let (defs, legend_g) = if matches.is_present("asn-colours") {
         legend_discrete(&plot_info)
     } else {
         legend(&plot_info)
     };
+    */
 
     info!("plotting {} rectangles, limit was {}", areas_plotted, plot_limit);
 
@@ -113,8 +122,10 @@ pub fn draw_svg(matches: &ArgMatches, rows: Vec<Row>, plot_info: &PlotInfo) -> s
     for g in groups {
         document.append(g);
     }
+    /* FIXME disabled while refactoring to PlotParams
     document.append(defs);
     document.append(legend_g);
+    */
     document
 
 }

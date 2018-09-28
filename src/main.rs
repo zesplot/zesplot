@@ -200,7 +200,8 @@ fn main() {
     // re-calculate colour scale
     plot_params.update_colour_scale(&specifics);
     debug!("post filter plot_params: {:#?}", plot_params);
-
+    debug!("post filter plot_info: {:#?}", plot_info);
+    
 
     // we calculate the total_area after turning the specifics into an hierarchical model
     // because the hierchical model will have less 'first level' rectangles, thus a smaller total_area
@@ -242,7 +243,7 @@ fn main() {
     let rows = treemap::areas_to_rows(areas);
 
     info!("-- drawing svg");
-    let document = plot::draw_svg(&matches, rows, &plot_info);
+    let document = plot::draw_svg(&matches, rows, &plot_params);
 
     info!("-- creating output files");
     match output::create_svg(&matches, &document, output_dir) {
