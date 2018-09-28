@@ -236,7 +236,7 @@ impl Specific {
     // Datapoint / Stat functions
 
     pub fn dp_mean(&self) -> f64 {
-        &self.dp_sum() / self.datapoints.len() as f64
+        self.dp_sum() / self.datapoints.len() as f64
     }
 
     pub fn dp_var(&self) -> f64 {
@@ -350,6 +350,7 @@ impl Specific {
         }
     }
 
+    #[allow(many_single_char_names)]
     pub fn to_rect(&self, t: Turtle, w_factor: f64, h_factor: f64, plot_params: &PlotParams) -> Rectangle {
         let Turtle {x, y, w, h} = t;
         let mut r = Rectangle::new()
@@ -384,10 +385,7 @@ impl Specific {
             Some(DpFunction::Sum)       => Specific::dp_sum,
             None                        => Specific::hits2,
         };
-        //debug!("dp_fn(): {}", dp_fn(&self));
-        //debug!("dp_mean(): {}", &self.dp_mean());
         let (h,s,l) = plot_params.colour_scale.get(dp_fn(&self));
-        //debug!("hsl: {}, {}, {}", h, s, l);
         r.assign("fill", format!("hsl({}, {}%, {}%)", h, s, l));
         r
 

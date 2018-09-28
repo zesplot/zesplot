@@ -48,7 +48,7 @@ impl ColourScale {
         if dp == 0.0 || dp.is_nan() {
             return (180_f64, 10, 75); // grey
         }
-        if self.min == self.median && self.median == self.max {
+        if (self.max - self.min) <= 1.0 {
             return (120_f64, 80, 50); // green ('mid of scale')
         }
         let c = if dp >= self.median {
