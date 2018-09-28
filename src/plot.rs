@@ -16,7 +16,8 @@ const LEGEND_GRADIENT_MARGIN: f64 = 2.0;    // margin between gradient and the p
 const LEGEND_GRADIENT_HEIGHT: f64 = HEIGHT; // - LABEL_DP_DESC_HEIGHT;     // width of the gradient itself
 
 const TICK_FIRST_Y: f64 = 0.0; //LABEL_DP_DESC_HEIGHT * 1.5; 
-const TICK_HEIGHT_DELTA: f64 = LEGEND_GRADIENT_HEIGHT / 4.0; // 4.0 because we have 5 ticks, so 4 spaces in between
+const NO_OF_TICKS: u64 = 5;
+const TICK_HEIGHT_DELTA: f64 = LEGEND_GRADIENT_HEIGHT / (NO_OF_TICKS - 1) as f64; // -1 because n ticks need n-1 spaces inbetween
 const TICK_X: f64 = WIDTH + LEGEND_GRADIENT_WIDTH + 2.0*LEGEND_GRADIENT_MARGIN ; 
 const TICK_FONT_SIZE: &str = "40%";
 pub const LEGEND_MARGIN_W: f64 = LEGEND_GRADIENT_WIDTH + 2.0*LEGEND_GRADIENT_MARGIN + 20.0;
@@ -42,7 +43,10 @@ impl ColourScale {
     // returns hsl format
     // h ==   0 -> red
     // h == 240 -> blue
+    
     pub fn get(&self, dp: f64) -> (f64,u32,u32) {
+        assert!(dp >= 0.0);
+        assert!(dp <= self.max);
         //debug!("ColourScale::get: {}", dp);
         //debug!("ColourScale: {:?}", &self);
         if dp == 0.0 || dp.is_nan() {
@@ -58,6 +62,24 @@ impl ColourScale {
         };
         (120_f64 + c , 80, 50)
     }
+
+    // use to create legend
+    // FIXME ticks are not correct yet
+    // likely caused by the median-aware colour scale
+    pub fn steps(&self, n: u64) -> (Vec<(f64,u32,u32)>, Vec<f64>) {
+        let range = self.max - self.min; 
+        let step = range / (n-1) as f64;
+        let mut steps = Vec::new();
+        let mut ticks = Vec::new();
+        for i in 0..n {
+            debug!("step loop i:{}", i);
+            let i = i as f64 * step;
+            steps.push(self.get(self.min + i));
+            ticks.push(self.min + i);
+        }
+        (steps, ticks)
+    }
+
 }
 
 pub fn draw_svg(matches: &ArgMatches, rows: Vec<Row>, plot_params: &PlotParams) -> svg::Document {
@@ -113,6 +135,8 @@ pub fn draw_svg(matches: &ArgMatches, rows: Vec<Row>, plot_params: &PlotParams) 
     };
     */
 
+    let (defs, legend_g) = legend(&plot_params);
+
     info!("plotting {} rectangles, limit was {}", areas_plotted, plot_limit);
 
     let mut document = Document::new()
@@ -122,14 +146,67 @@ pub fn draw_svg(matches: &ArgMatches, rows: Vec<Row>, plot_params: &PlotParams) 
     for g in groups {
         document.append(g);
     }
-    /* FIXME disabled while refactoring to PlotParams
+
     document.append(defs);
     document.append(legend_g);
-    */
     document
 
 }
 
+
+fn legend(plot_params: &PlotParams) -> (Definitions, Group) {
+    let mut defs = Definitions::new();
+    let mut legend_g = Group::new();
+    let mut gradient = LinearGradient::new()
+                            .set("id", "grad0")
+                            .set("x1", "0")
+                            .set("x2", "0")
+                            .set("y1", "0")
+                            .set("y2", "1");
+
+    // 100% == top of gradient
+    let steps = NO_OF_TICKS as u64;
+    let (colours, ticks) = plot_params.colour_scale.steps(steps);
+    debug!("ticks: {:?}", ticks);
+    //for (i, (c, tick)) in plot_params.colour_scale.steps(steps).iter().rev().enumerate() {
+    for (i, (c, tick)) in colours.iter().zip(ticks.iter()).rev().enumerate() {
+        let (h,s,l) = c;
+        gradient.append(Stop::new()
+                            .set("offset", format!("{}%", (100/(steps-0)) * i as u64))
+                            .set("stop-color", format!("hsl({}, {}%, {}%)", h, s, l))
+                            );
+
+        let mut legend_tick = Text::new()
+            .set("x", WIDTH + LEGEND_GRADIENT_WIDTH + LEGEND_GRADIENT_MARGIN*2.0)
+            .set("y", 5.0 + TICK_FIRST_Y + TICK_HEIGHT_DELTA*(i as f64))
+            .set("font-family", "serif")
+            .set("font-size", TICK_FONT_SIZE)
+            .set("text-anchor", "left");
+        //legend_label_100.append(Tekst::new(format!("{:.0}", legend_100)))
+        //legend_label_100.append(Tekst::new(tick_label(legend_100))) ;
+        legend_tick.append(Tekst::new(format!("{:.0}", tick)));
+        legend_g.append(legend_tick);
+            
+    }
+    defs.append(gradient);
+
+    let legend = Rectangle::new()
+                    .set("x", WIDTH + LEGEND_GRADIENT_MARGIN)
+                    .set("y", 0)
+                    .set("width", LEGEND_GRADIENT_WIDTH)
+                    .set("height", LEGEND_GRADIENT_HEIGHT)
+                    .set("stroke-width", 0.1)
+                    .set("stroke", "#aaaaaa")
+                    .set("opacity", 1.0)
+                    .set("fill", "url(#grad0)")
+                    ;
+    legend_g.append(legend);
+
+    
+
+
+    (defs, legend_g)
+}
 
 /*
 
@@ -365,3 +442,26 @@ pub fn tick_label(v: f64) -> String {
     }
 }
 */
+
+
+mod tests{
+    use super::*;
+
+    #[test]
+    fn colour_scale() {
+        let cs = ColourScale::new(1.0, 10.0, 100.0);
+        let (h,s,l) = cs.get(1.0);
+        assert_eq!(h, 240.0);
+        let (h,s,l) = cs.get(100.0);
+        assert_eq!(h, 0.0);
+
+
+        let cs = ColourScale::new(10.0, 50.0, 100.0);
+        let (h,s,l) = cs.get(10.0);
+        assert_eq!(h, 240.0);
+        let (h,s,l) = cs.get(100.0);
+        assert_eq!(h, 0.0);
+
+    }
+
+}
