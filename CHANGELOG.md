@@ -1,11 +1,21 @@
 ## [Unreleased]
 
-Big refactoring effort, including optimizations with regards to i/o.
+Big refactoring effort, including optimizations with regards to i/o and better
+error handling/messages towards the user.
+
+
+
+### New
+* --prefixes now accepts gzipped files from CAIDA's pfx2as directly
+* new --csv option, explicitly triggering the CSV parser on the address input
+  file, allowing specification of column names to be used for metadata (e.g.
+  'ttl' or 'mss')
+
 
 ### Changed
-* new --csv option, explicitly triggering the CSV parser on the address input
-  file, allowing specification of column names
-* 
+* improved performance when creating addresses file (--addresses)
+* --prefixes now accepts two formats, either two columns ("prefix/len ASN") or
+  three columns ("prefix len ASN")
 
 
 ### Deprecated (at least for now)
