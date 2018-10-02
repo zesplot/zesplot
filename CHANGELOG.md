@@ -13,7 +13,7 @@ error handling/messages towards the user.
 
 
 ### Changed
-* improved performance when creating addresses file (--addresses)
+* improved performance when creating addresses file (--create-addresses)
 * --prefixes now accepts two formats, either two columns ("prefix/len ASN") or
   three columns ("prefix len ASN")
 
