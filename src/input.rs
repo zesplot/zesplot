@@ -8,7 +8,7 @@ use std::io;
 use std::io::prelude::*;
 use std::collections::{HashMap,HashSet};
 use std::fs::File;
-use std::io::BufReader;
+use std::io::{BufReader, BufWriter};
 
 use std::time::Instant;
 use std::process::exit;
@@ -61,13 +61,14 @@ pub fn process_inputs(matches: &ArgMatches) -> (Vec<Specific> , PlotParams) {
                     Path::new(matches.value_of("address-file").unwrap()).file_name().unwrap().to_str().unwrap(),
         );
         info!("creating address file {}", address_output_fn);
-        //TODO: this is slow! Use a BufWriter or something alike
-        let mut file = File::create(address_output_fn).unwrap();
+        let output_fh = File::create(address_output_fn).unwrap();
+        let mut buf = BufWriter::new(output_fh);
         for (_,_,s) in table.iter() {
             for dp in &s.datapoints {
-                let _ = writeln!(file, "{}", dp.ip6);
+                writeln!(buf, "{}", dp.ip6);
             }
         }
+        let _ = buf.flush();
         exit(0);
     }
 
