@@ -16,3 +16,4 @@ radix_trie = "0.1.3"
 treebitmap = {git="https://github.com/zesplot/treebitmap.git", branch="longest_match_mut"}
 simplelog = "0.5.2"
 log = "0.4.5"
+flate2 = "1.0"

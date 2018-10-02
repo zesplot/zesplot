@@ -5,6 +5,7 @@ extern crate treebitmap;
 extern crate svg;
 extern crate ipnetwork;
 extern crate rand;
+extern crate flate2;
 
 #[macro_use] extern crate clap;
 use clap::{Arg, App};

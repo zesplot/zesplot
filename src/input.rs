@@ -15,6 +15,7 @@ use std::process::exit;
 use std::path::Path;
 
 use csv;
+use flate2::read::GzDecoder;
 
 use clap::ArgMatches;
 
@@ -123,24 +124,58 @@ pub fn process_inputs(matches: &ArgMatches) -> (Vec<Specific> , PlotParams) {
 // or, simply fetched from http://data.caida.org/datasets/routing/routeviews6-prefix2as/2018/01/
 // awk '{print $1"/"$2, $3}'
 
-fn prefixes_from_file(f: &str) -> io::Result<IpLookupTable<Ipv6Addr,Specific>> {
-    let mut file = File::open(f)?;
-    let mut s = String::new();
-    file.read_to_string(&mut s)?;
-    let mut table: IpLookupTable<Ipv6Addr,Specific> = IpLookupTable::new();
-    for line in s.lines() {
-        let parts = line.split_whitespace().collect::<Vec<&str>>();
-        if let Ok(route) = parts[0].parse::<Ipv6Network>(){
+fn prefixes_from_file(input_fn: &str) -> io::Result<IpLookupTable<Ipv6Addr,Specific>> {
+    let mut input = File::open(input_fn)?;
+    let mut uncompressed = String::new();
+    if input_fn.ends_with(".gz") {
+        let mut reader = GzDecoder::new(input);
+        reader.read_to_string(&mut uncompressed)?;
+    } else {
+        let _ = input.read_to_string(&mut uncompressed);
+    }
 
-            // asn is not a u32, as some routes have an asn_asn_asn,asn notation in pfx2as
-            let asn = parts[1];
-                table.insert(route.ip(), route.prefix().into(),
-                        Specific { network: route, asn: asn.to_string(), datapoints: Vec::new(), specifics: Vec::new()});
-        } else {
-                warn!("choked on {} while reading prefixes file", line);
+    let mut table: IpLookupTable<Ipv6Addr,Specific> = IpLookupTable::new();
+
+    for line in uncompressed.lines() {
+        let parts: Vec<&str> = line.split_whitespace().collect();
+        match parts.len() {
+            // two column input, e.g. "2001:db8::/32 1234"
+            2   => {
+                if let Ok(route) = parts[0].parse::<Ipv6Network>() {
+                    table.insert(route.ip(), route.prefix().into(),
+                        Specific {
+                            network: route,
+                            asn: parts[1].to_string(), 
+                            datapoints: Vec::new(),
+                            specifics: Vec::new(),
+                            });
+                }
+            },
+            // three column input, e.g. "2001:db8:: 32 1234"
+            3   => {
+                if let Ok(addr) = parts[0].parse::<Ipv6Addr>() {
+                    if let Ok(route) = Ipv6Network::new(addr, parts[1].parse::<u8>().unwrap()) {
+                        //.map_err(|_| ZesplotError::Custom(format!("Failed to parse {} as a prefix length", parts[1])))?) {
+                    table.insert(route.ip(), route.prefix().into(),
+                        Specific {
+                            network: route,
+                            asn: parts[2].to_string(), 
+                            datapoints: Vec::new(),
+                            specifics: Vec::new(),
+                            });
+                    }
+                }
+
+
+            },
+            _   => { panic!("can't parse input file, expecting either 2 or 3 columns")},
         }
-    }; 
+        //println!("{}", line);
+    }
+
+
     Ok(table)
+
 }
 
 fn asn_colours_from_file(f: &str) -> io::Result<HashMap<u32, String>> {
