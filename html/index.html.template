@@ -27,7 +27,7 @@ __SVG__
             $.data(this, 'powertip', $.data(this, 'powertip')
                 + "datapoints: " + $(this).data('dp-desc')
                 + "<br/>" 
-                + "&nbsp;&nbsp;&nbsp;avg: " + $(this).data('dp-avg')
+                + "&nbsp;&nbsp;&nbsp;mean: " + $(this).data('dp-mean')
                 + "<br/>" 
                 + "&nbsp;&nbsp;&nbsp;median: " + $(this).data('dp-median')
                 + "<br/>" 
