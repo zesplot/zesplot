@@ -357,15 +357,20 @@ impl Specific {
             .set("data-hits", self.all_hits())
             //.set("data-dp-desc", plot_info.dp_desc.clone())
             .set("data-dp-desc", plot_params.legend_label.clone())
-            //TODO: only set these attributes if actual meta data was provided for input
-            // i.e. if there was a second CSV column
+            ;
+
+        // only set these attributes if actual meta data was provided for input
+        // i.e. if there was a second CSV column
+        if plot_params.dp_function.is_some() {
+            r = r
             .set("data-dp-mean", format!("{:.1}", self.dp_mean()))
             .set("data-dp-median", format!("{:.1}", self.dp_median()))
             .set("data-dp-var", format!("{:.1}", self.dp_var()))
-            .set("data-dp-uniq", format!("{:.1}", self.dp_uniq()))
-            .set("data-dp-sum", format!("{:.1}", self.dp_sum()))
+            .set("data-dp-uniq", format!("{:.0}", self.dp_uniq()))
+            .set("data-dp-sum", format!("{:.0}", self.dp_sum()))
             .set("data-hw-avg", format!("{:.1}", self.hw_avg()))
             ;
+        }
 
         let dp_fn: fn(&Specific) -> f64 = match plot_params.dp_function {
             Some(DpFunction::Mean)      => Specific::dp_mean,
