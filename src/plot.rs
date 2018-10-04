@@ -4,7 +4,7 @@ use svg::node::element::{Rectangle, Text, Group, Definitions, LinearGradient, St
 use svg::node::Text as Tekst;
 
 use clap::ArgMatches;
-use treemap::{PlotParams,ColourMode,Row};
+use treemap::{PlotParams,Row};
 
 pub const WIDTH: f64 = 160.0;
 pub const HEIGHT: f64 = 100.0;

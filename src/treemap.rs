@@ -62,18 +62,6 @@ impl DataPoint {
 }
 
 #[derive(Debug)]
-pub enum ColourMode {
-    Hits,
-    DpAvg,
-    DpMedian,
-    DpVar,
-    DpUniq,
-    DpSum,
-    HwAvg,
-    Asn
-}
-
-#[derive(Debug)]
 pub enum DpFunction {
     Mean,
     Median,
@@ -350,14 +338,6 @@ impl Specific {
 
     pub fn to_string(&self) -> String {
         format!("AS{}", &self.asn)
-    }
-
-    pub fn asn(&self) -> u32 {
-        if let Ok(i) = self.asn.parse::<u32>(){
-            i
-        } else {
-            0
-        }
     }
 
     #[allow(many_single_char_names)]
