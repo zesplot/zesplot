@@ -668,50 +668,6 @@ pub fn areas_to_rows(mut areas: Vec<Area>) -> Vec<Row> {
 }
 
 
-
-
-
-// for things that are less spread, e.g. avg TTL, the non-log version might give better output
-// try whether some threshold within the same function works
-// e.g. if max > 1024, then log2()
-// const COLOUR_SCALE: Vec::<u32> = (0..0xff+1).map(|e| 0xff | (e << 8)).collect();
-//FIXME: recreating the scale everytime is ugly
-
-fn colour(i: u32, max: u32) -> String {
-    if i == 0 {
-        return "#eeeeee".to_string();
-    }
-
-    let mut scale: Vec<u32> = (0..=0xff).map(|e| 0xff | (e << 8)).collect();
-    scale.append(&mut (0..=0xff).rev().map(|e| (0xff << 8) | e).collect::<Vec<u32>>() );
-    scale.append(&mut (0..=0xff).map(|e| 0xff00 | (e << 16) | e).collect::<Vec<u32>>() );
-    scale.append(&mut (0..=0xff).rev().map(|e| 0x00ff_0000 | (e << 8)).collect::<Vec<u32>>() );
-
-    if max > 1024 {
-        let norm = scale.len() as f64 / (f64::from(max)).log2();
-        let mut index = (f64::from(i).log2() * norm) as usize;
-        //FIXME: this should not be necessary..
-        if index >= scale.len() {
-            index = scale.len() - 1;
-        }
-        if index == 0 {
-            index = 1;
-        }
-        format!("#{:06x}", &scale[index])
-    } else {
-        let norm = scale.len() as f64 / f64::from(max);
-        let mut index = (f64::from(i) * norm) as usize;
-        //FIXME: this should not be necessary..
-        if index >= scale.len() {
-            index = scale.len() - 1;
-        }
-        if index == 0 {
-            index = 1;
-        }
-        format!("#{:06x}", &scale[index])
-    }
-}
-
 // used for asn -> id mapping
 fn colour_from_map(asn: u32, mapping: &HashMap<u32, String>) -> String {
 
