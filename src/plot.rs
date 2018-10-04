@@ -48,23 +48,31 @@ impl ColourScale {
     // h ==   0 -> red
     // h == 240 -> blue
     pub fn get(&self, dp: f64) -> (f64,u32,u32) {
-        assert!(dp >= 0.0);
-        assert!(dp <= self.max);
-
         if dp == 0.0 || dp.is_nan() {
             return (180_f64, 0, 90); // white grey-ish
         }
+
+        assert!(dp >= 0.0);
+        assert!(dp <= self.max);
 
         let range = self.max - self.min;
 
         let dp_norm = if range > 1024.0 {
             // go in logarithmic mode
             let norm: f64 = 240.0 / self.max.log2();
-            dp.log2() * norm
+            if dp >= 1.0 {
+                dp.log2() * norm
+            } else {
+                // log of a sub 1.0 number is negative and results in incorrect colours
+                norm
+            }
         } else {
             let norm: f64 = 240.0 / self.max;
             dp * norm
         };
+
+        assert!(dp_norm >= 0.0, format!("dp_norm < 0.0: {}, original dp: {}", dp_norm, dp));
+        assert!(dp_norm <= 240.0, format!("dp_norm > 240.0: {}, original dp: {}", dp_norm, dp));
 
         //println!("dp_norm: {}", dp_norm);
         (240.0 - dp_norm, 90, 50)
