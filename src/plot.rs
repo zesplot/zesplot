@@ -15,11 +15,15 @@ const LEGEND_GRADIENT_WIDTH: f64 = 3.0;     // width of the gradient itself
 const LEGEND_GRADIENT_MARGIN: f64 = 2.0;    // margin between gradient and the plot and the ticks
 const LEGEND_GRADIENT_HEIGHT: f64 = HEIGHT; // - LABEL_DP_DESC_HEIGHT;     // width of the gradient itself
 
-const TICK_FIRST_Y: f64 = 0.0; //LABEL_DP_DESC_HEIGHT * 1.5; 
+//const TICK_FIRST_Y: f64 = 0.0; //LABEL_DP_DESC_HEIGHT * 1.5; 
 const NO_OF_TICKS: u64 = 5;
-const TICK_HEIGHT_DELTA: f64 = LEGEND_GRADIENT_HEIGHT / (NO_OF_TICKS - 1) as f64; // -1 because n ticks need n-1 spaces inbetween
+const TICK_FONT_HEIGHT: f64 = 4.0;
+const TICK_HEIGHT_DELTA: f64 = (LEGEND_GRADIENT_HEIGHT - TICK_FONT_HEIGHT) / (NO_OF_TICKS - 1) as f64; // -1 because n ticks need n-1 spaces inbetween
 const TICK_X: f64 = WIDTH + LEGEND_GRADIENT_WIDTH + 2.0*LEGEND_GRADIENT_MARGIN ; 
-const TICK_FONT_SIZE: &str = "40%";
+//const TICK_FONT_SIZE: &str = "40%";&
+//const TICK_FONT_SIZE: &str = &format!("{}px", TICK_FONT_HEIGHT);
+const TICK_FONT_SIZE: &str = "4px";
+
 pub const LEGEND_MARGIN_W: f64 = LEGEND_GRADIENT_WIDTH + 2.0*LEGEND_GRADIENT_MARGIN + 20.0;
 
 
@@ -43,8 +47,31 @@ impl ColourScale {
     // returns hsl format
     // h ==   0 -> red
     // h == 240 -> blue
-    
     pub fn get(&self, dp: f64) -> (f64,u32,u32) {
+        assert!(dp >= 0.0);
+        assert!(dp <= self.max);
+
+        if dp == 0.0 || dp.is_nan() {
+            return (180_f64, 0, 90); // white grey-ish
+        }
+
+        let range = self.max - self.min;
+
+        let dp_norm = if range > 1024.0 {
+            // go in logarithmic mode
+            let norm: f64 = 240.0 / self.max.log2();
+            dp.log2() * norm
+        } else {
+            let norm: f64 = 240.0 / self.max;
+            dp * norm
+        };
+
+        //println!("dp_norm: {}", dp_norm);
+        (240.0 - dp_norm, 90, 50)
+    }
+
+    #[allow(dead_code)]
+    pub fn get_boxplot(&self, dp: f64) -> (f64,u32,u32) {
         assert!(dp >= 0.0);
         assert!(dp <= self.max);
         //debug!("ColourScale::get: {}", dp);
@@ -64,18 +91,28 @@ impl ColourScale {
     }
 
     // use to create legend
-    // FIXME ticks are not correct yet
-    // likely caused by the median-aware colour scale
+    // for boxplot we might need something completely different..
     pub fn steps(&self, n: u64) -> (Vec<(f64,u32,u32)>, Vec<f64>) {
         let range = self.max - self.min; 
-        let step = range / (n-1) as f64;
         let mut steps = Vec::new();
         let mut ticks = Vec::new();
-        for i in 0..n {
-            debug!("step loop i:{}", i);
-            let i = i as f64 * step;
-            steps.push(self.get(self.min + i));
-            ticks.push(self.min + i);
+        if range > 1024.0 {
+            // logarithmic
+            let step = range.log2() / (n-1) as f64;
+            for i in 0..n {
+                debug!("step loop log i:{}", i);
+                let i = i as f64 * step;
+                steps.push(self.get( 2_f64.powf(i) ));
+                ticks.push(2_f64.powf(i)); // self.min ?
+            }
+        } else {
+            let step = range / (n-1) as f64;
+            for i in 0..n {
+                debug!("step loop i:{}", i);
+                let i = i as f64 * step;
+                steps.push(self.get(self.min + i));
+                ticks.push(self.min + i);
+            }
         }
         (steps, ticks)
     }
@@ -154,6 +191,16 @@ pub fn draw_svg(matches: &ArgMatches, rows: Vec<Row>, plot_params: &PlotParams) 
 }
 
 
+fn format_tick(n: f64) -> String {
+    if n > 1_000_000_f64 {
+        format!("{:.0}M", n/1_000_000_f64)
+    } else if n > 1_000_f64 {
+        format!("{:.0}K", n/1_000_f64)
+    } else {
+        format!("{:.0}", n)
+    }
+}
+
 fn legend(plot_params: &PlotParams) -> (Definitions, Group) {
     let mut defs = Definitions::new();
     let mut legend_g = Group::new();
@@ -167,24 +214,27 @@ fn legend(plot_params: &PlotParams) -> (Definitions, Group) {
     // 100% == top of gradient
     let steps = NO_OF_TICKS as u64;
     let (colours, ticks) = plot_params.colour_scale.steps(steps);
-    debug!("ticks: {:?}", ticks);
+    debug!("ticks ({}): {:?}", ticks.len(), ticks);
+    debug!("colours ({}): {:?}", colours.len(), colours);
     //for (i, (c, tick)) in plot_params.colour_scale.steps(steps).iter().rev().enumerate() {
     for (i, (c, tick)) in colours.iter().zip(ticks.iter()).rev().enumerate() {
         let (h,s,l) = c;
         gradient.append(Stop::new()
-                            .set("offset", format!("{}%", (100/(steps-0)) * i as u64))
+                            .set("offset", format!("{}%", (100/(steps-1)) * i as u64))
                             .set("stop-color", format!("hsl({}, {}%, {}%)", h, s, l))
                             );
 
         let mut legend_tick = Text::new()
             .set("x", WIDTH + LEGEND_GRADIENT_WIDTH + LEGEND_GRADIENT_MARGIN*2.0)
-            .set("y", 5.0 + TICK_FIRST_Y + TICK_HEIGHT_DELTA*(i as f64))
+            .set("y", TICK_FONT_HEIGHT + TICK_HEIGHT_DELTA*(i as f64))
             .set("font-family", "serif")
             .set("font-size", TICK_FONT_SIZE)
             .set("text-anchor", "left");
         //legend_label_100.append(Tekst::new(format!("{:.0}", legend_100)))
         //legend_label_100.append(Tekst::new(tick_label(legend_100))) ;
-        legend_tick.append(Tekst::new(format!("{:.0}", tick)));
+
+        //legend_tick.append(Tekst::new(format!("{:.0}", tick)));
+        legend_tick.append(Tekst::new(format_tick(*tick)));
         legend_g.append(legend_tick);
             
     }
@@ -203,6 +253,24 @@ fn legend(plot_params: &PlotParams) -> (Definitions, Group) {
     legend_g.append(legend);
 
     
+    // TODO: more precise way of determining actual maximum width
+    let ticks_max_width = 3.0 * TICK_FONT_HEIGHT;
+
+    let mut legend_label = Text::new()
+        .set("font-family", "serif")
+        .set("font-size", TICK_FONT_SIZE)
+        .set("writing-mode", "tb-rl")
+        .set("x", TICK_X + ticks_max_width)
+        .set("y", HEIGHT / 2.0)
+        .set("text-anchor", "middle")
+        .set("transform", format!("rotate(180, {}, {})", TICK_X + ticks_max_width, HEIGHT / 2.0 ))
+        ;
+        
+
+        //.set("alignment-baseline", "hanging"); // this does not work in firefox
+        legend_label.append(Tekst::new(plot_params.legend_label.clone()));
+    
+    legend_g.append(legend_label);
 
 
     (defs, legend_g)
@@ -443,23 +511,43 @@ pub fn tick_label(v: f64) -> String {
 }
 */
 
-
+#[cfg(test)]
 mod tests{
     use super::*;
 
     #[test]
-    fn colour_scale() {
-        let cs = ColourScale::new(1.0, 10.0, 100.0);
+    fn colour_scale_log() {
+        let cs = ColourScale::new(1.0, 10.0, 2048.0);
         let (h,s,l) = cs.get(1.0);
+        assert_eq!(h.round(), 240.0);
+        let (h,s,l) = cs.get(2048.0);
+        assert_eq!(h.round(), 0.0);
+
+        let (h,s,l) = cs.get(45.0);
+        assert_eq!(h.round(), 120.0);
+
+
+        //let cs = ColourScale::new(10.0, 50.0, 100.0);
+        //let (h,s,l) = cs.get(10.0);
+        //assert_eq!(h, 240.0);
+        //let (h,s,l) = cs.get(100.0);
+        //assert_eq!(h, 0.0);
+
+    }
+
+    #[test]
+    fn colour_scale_boxplot() {
+        let cs = ColourScale::new(1.0, 10.0, 100.0);
+        let (h,s,l) = cs.get_boxplot(1.0);
         assert_eq!(h, 240.0);
-        let (h,s,l) = cs.get(100.0);
+        let (h,s,l) = cs.get_boxplot(100.0);
         assert_eq!(h, 0.0);
 
 
         let cs = ColourScale::new(10.0, 50.0, 100.0);
-        let (h,s,l) = cs.get(10.0);
+        let (h,s,l) = cs.get_boxplot(10.0);
         assert_eq!(h, 240.0);
-        let (h,s,l) = cs.get(100.0);
+        let (h,s,l) = cs.get_boxplot(100.0);
         assert_eq!(h, 0.0);
 
     }
