@@ -189,25 +189,19 @@ fn main() {
         // if a prefix has multiple more-specifics, and only one has hits, all specifics are plotted
         // filtering out empty more-specifics might be useful
         let pre_filter_len_specs = specifics.len();
-        //specifics.retain(|s| s.all_hits() >= 1);
         let filter_threshold = value_t!(matches.value_of("filter-threshold"), usize).unwrap_or_else(|_| 1);
         info!("filter_threshold: {}", filter_threshold);
         specifics.retain(|s| s.all_hits() >= filter_threshold);
-        //total_area = specifics.iter().fold(0, |sum, s|{sum + s.size(unsized_rectangles)});
         info!("filtered {} empty specifics, left (top-level): {}", pre_filter_len_specs - specifics.len(), specifics.len());
-
+        // re-calculate colour scale
+        plot_params.update_colour_scale(&specifics);
+        debug!("post filter plot_params: {:#?}", plot_params);
     } else {
         info!("no filtering of empty prefixes");
     }
 
-    // re-calculate colour scale
-    plot_params.update_colour_scale(&specifics);
-    debug!("post filter plot_params: {:#?}", plot_params);
-    
-
     // we calculate the total_area after turning the specifics into an hierarchical model
     // because the hierchical model will have less 'first level' rectangles, thus a smaller total_area
-    //let mut total_area = specifics.iter().fold(0, |sum, s|{sum + s.size(unsized_rectangles)});
     let total_area = specifics.iter().fold(0, |sum, s|{sum + s.size(unsized_rectangles)});
 
     // this is affected by how we impement the filtering of empty prefixes
