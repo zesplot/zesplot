@@ -74,16 +74,18 @@ pub fn process_inputs(matches: &ArgMatches) -> (Vec<Specific> , PlotParams) {
     }
 
 
-    // read extra ASN colour info, if any
-    let asn_colours = if matches.is_present("asn-colours") {
-        asn_colours_from_file(matches.value_of("asn-colours").unwrap()).unwrap()
-    } else {
-        HashMap::new()
-    };
+    let mut plot_params = PlotParams::new(&table, &matches);
+    debug!("{:#?}", plot_params);
 
-    let plot_params = PlotParams::new(&table, &matches);
+    // read extra ASN colour info, if any
+    if matches.is_present("asn-colours") {
+        plot_params.set_asn_colours(asn_colours_from_file(matches.value_of("asn-colours").unwrap()).unwrap());
+    }
+
+
 
     debug!("{:#?}", plot_params);
+
 
     let mut specifics: Vec<Specific>  = table.into_iter().map(|(_,_,s)| s).collect();
     let mut specifics_with_hits = 0;

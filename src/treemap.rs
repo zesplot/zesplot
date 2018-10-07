@@ -78,9 +78,10 @@ pub struct PlotParams {
     pub legend_label: String,
     pub show_legend: bool,
     pub colour_scale: plot::ColourScale,
+    pub discrete_colour_scale: Option<plot::DiscreteColourScale>,
     pub filter_threshold: u64,
     pub dp_function: Option<DpFunction>,
-    // asn_colours? or make that a type of ColourScale?
+    //pub asn_colours: Option<HashMap<u32, String>>
 }
 
 impl PlotParams {
@@ -166,6 +167,8 @@ impl PlotParams {
         let (min, median, max) = (meta_dps[0], meta_dps[meta_dps.len()/2], meta_dps[meta_dps.len()-1]);
             
         let colour_scale = plot::ColourScale::new(min, median, max);
+        //let asn_colours: HashMap<u32, String> = HashMap::new();
+        let discrete_colour_scale = None;
 
         PlotParams {
             sized,
@@ -173,10 +176,19 @@ impl PlotParams {
             legend_label,
             show_legend,
             colour_scale,
+            discrete_colour_scale,
             filter_threshold,
             dp_function,
             }
 
+    }
+
+    pub fn set_asn_colours(&mut self, asn_colours: HashMap<u32, String>) {
+        // TODO we might need to change some other fields of the struct here
+        // like setting dp_function back to None, or change something in the colour_scale
+        //self.asn_colours = Some(asn_colours);
+        self.discrete_colour_scale = Some(plot::DiscreteColourScale::new(asn_colours));
+        //debug!("dcs: {:#?}", dcs);
     }
 
     pub fn update_colour_scale(&mut self, specifics: &[Specific]) {
@@ -336,6 +348,10 @@ impl Specific {
         self.network.prefix()
     }
 
+    pub fn asn(&self) -> u32 {
+        self.asn.parse::<u32>().unwrap_or(0)
+    }
+
     pub fn to_string(&self) -> String {
         format!("AS{}", &self.asn)
     }
@@ -372,16 +388,23 @@ impl Specific {
             ;
         }
 
-        let dp_fn: fn(&Specific) -> f64 = match plot_params.dp_function {
-            Some(DpFunction::Mean)      => Specific::dp_mean,
-            Some(DpFunction::Median)    => Specific::dp_median,
-            Some(DpFunction::Var)       => Specific::dp_var,
-            Some(DpFunction::Uniq)      => Specific::dp_uniq,
-            Some(DpFunction::Sum)       => Specific::dp_sum,
-            None                        => Specific::hits2,
-        };
-        let (h,s,l) = plot_params.colour_scale.get(dp_fn(&self));
-        r.assign("fill", format!("hsl({}, {}%, {}%)", h, s, l));
+        if let Some(dcs) = &plot_params.discrete_colour_scale {
+            let (h,s,l) = dcs.get(self.asn());
+            r.assign("fill", format!("hsl({}, {}%, {}%)", h, s, l));
+        } else {
+
+            let dp_fn: fn(&Specific) -> f64 = match plot_params.dp_function {
+                Some(DpFunction::Mean)      => Specific::dp_mean,
+                Some(DpFunction::Median)    => Specific::dp_median,
+                Some(DpFunction::Var)       => Specific::dp_var,
+                Some(DpFunction::Uniq)      => Specific::dp_uniq,
+                Some(DpFunction::Sum)       => Specific::dp_sum,
+                None                        => Specific::hits2,
+            };
+            let (h,s,l) = plot_params.colour_scale.get(dp_fn(&self));
+            r.assign("fill", format!("hsl({}, {}%, {}%)", h, s, l));
+        }
+
         r
 
 
