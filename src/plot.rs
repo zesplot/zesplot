@@ -350,32 +350,28 @@ mod tests{
 
     #[test]
     fn colour_scale_log() {
-        let cs = ColourScale::new(1.0, 10.0, 2048.0);
-        let (h,s,l) = cs.get(1.0);
+        let cs = ContinuousColourScale::new(1.0, 10.0, 2048.0);
+        let (h,_,_) = cs.get(1.0);
         assert_eq!(h.round(), COLOUR_MAX_HUE);
-        let (h,s,l) = cs.get(2048.0);
+        let (h,_,_) = cs.get(2048.0);
         assert_eq!(h.round(), 0.0);
-
-        let (h,s,l) = cs.get(45.0);
+        let (h,_,_) = cs.get(45.0);
         assert_eq!(h.round(), 120.0);
-
     }
 
-    #[test]
-    fn colour_scale_boxplot() {
-        let cs = ColourScale::new(1.0, 10.0, 100.0);
-        let (h,s,l) = cs.get_boxplot(1.0);
-        assert_eq!(h, COLOUR_MAX_HUE);
-        let (h,s,l) = cs.get_boxplot(100.0);
-        assert_eq!(h, 0.0);
+    //#[test]
+    //fn colour_scale_boxplot() {
+    //    let cs = ColourScale::new(1.0, 10.0, 100.0);
+    //    let (h,s,l) = cs.get_boxplot(1.0);
+    //    assert_eq!(h, COLOUR_MAX_HUE);
+    //    let (h,s,l) = cs.get_boxplot(100.0);
+    //    assert_eq!(h, 0.0);
 
-
-        let cs = ColourScale::new(10.0, 50.0, 100.0);
-        let (h,s,l) = cs.get_boxplot(10.0);
-        assert_eq!(h, COLOUR_MAX_HUE);
-        let (h,s,l) = cs.get_boxplot(100.0);
-        assert_eq!(h, 0.0);
-
-    }
+    //    let cs = ColourScale::new(10.0, 50.0, 100.0);
+    //    let (h,s,l) = cs.get_boxplot(10.0);
+    //    assert_eq!(h, COLOUR_MAX_HUE);
+    //    let (h,s,l) = cs.get_boxplot(100.0);
+    //    assert_eq!(h, 0.0);
+    //}
 
 }
