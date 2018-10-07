@@ -1,4 +1,5 @@
 use plot;
+use input;
 
 use ipnetwork::Ipv6Network;
 use std::net::Ipv6Addr;
@@ -8,7 +9,7 @@ use treebitmap::{IpLookupTable};
 use svg::Node;
 use svg::node::element::Rectangle;
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 use clap::ArgMatches;
 
 use std::cmp::Ordering;
@@ -78,7 +79,6 @@ pub struct PlotParams {
     pub legend_label: String,
     pub show_legend: bool,
     pub colour_scale: plot::ColourScale,
-    pub discrete_colour_scale: Option<plot::DiscreteColourScale>,
     pub filter_threshold: u64,
     pub dp_function: Option<DpFunction>,
     //pub asn_colours: Option<HashMap<u32, String>>
@@ -131,6 +131,8 @@ impl PlotParams {
 
         let legend_label = if matches.is_present("legend-label") {
             matches.value_of("legend-label").unwrap().to_string()
+        } else if matches.is_present("asn-colours") {
+            "asn-colour".to_string()
         } else if dp_function.is_some() {
             match dp_function {
                 Some(DpFunction::Mean)   =>   format!("mean({})", colour_metric),
@@ -166,9 +168,13 @@ impl PlotParams {
         meta_dps.sort_by(|a, b| a.partial_cmp(b).unwrap_or(Ordering::Less));
         let (min, median, max) = (meta_dps[0], meta_dps[meta_dps.len()/2], meta_dps[meta_dps.len()-1]);
             
-        let colour_scale = plot::ColourScale::new(min, median, max);
-        //let asn_colours: HashMap<u32, String> = HashMap::new();
-        let discrete_colour_scale = None;
+        let colour_scale = if matches.is_present("asn-colours") {
+            plot::ColourScale::Discrete(
+                plot::DiscreteColourScale::new(input::asn_colours_from_file(matches.value_of("asn-colours").unwrap()).unwrap())
+            )
+        } else {
+            plot::ColourScale::Continuous(plot::ContinuousColourScale::new(min, median, max))
+        };
 
         PlotParams {
             sized,
@@ -176,22 +182,20 @@ impl PlotParams {
             legend_label,
             show_legend,
             colour_scale,
-            discrete_colour_scale,
             filter_threshold,
             dp_function,
             }
 
     }
 
-    pub fn set_asn_colours(&mut self, asn_colours: HashMap<u32, String>) {
-        // TODO we might need to change some other fields of the struct here
-        // like setting dp_function back to None, or change something in the colour_scale
-        //self.asn_colours = Some(asn_colours);
-        self.discrete_colour_scale = Some(plot::DiscreteColourScale::new(asn_colours));
-        //debug!("dcs: {:#?}", dcs);
-    }
-
     pub fn update_colour_scale(&mut self, specifics: &[Specific]) {
+        if let plot::ColourScale::Continuous(_) = self.colour_scale {
+            // we're okay
+        } else {
+            info!("called update_colour_scale() while not using ContinuousColourScale: doing nothing");
+            return;
+        }
+
         let dp_fn: fn(&Specific) -> f64 = match self.dp_function {
             Some(DpFunction::Mean)      => Specific::dp_mean,
             Some(DpFunction::Median)    => Specific::dp_median,
@@ -209,7 +213,7 @@ impl PlotParams {
 
         // if we have no datapoints, return gracefully
         if meta_dps.is_empty() {
-            self.colour_scale = plot::ColourScale::new(0.0, 0.0, 0.0);
+            self.colour_scale = plot::ColourScale::Continuous(plot::ContinuousColourScale::new(0.0, 0.0, 0.0));
             return
         }
 
@@ -225,7 +229,7 @@ impl PlotParams {
             meta_dps[meta_dps.len()/2]
         };
 
-        self.colour_scale = plot::ColourScale::new(min, median, max);
+        self.colour_scale = plot::ColourScale::Continuous(plot::ContinuousColourScale::new(min, median, max));
     }
 
 
@@ -388,6 +392,26 @@ impl Specific {
             ;
         }
 
+        match plot_params.colour_scale {
+            plot::ColourScale::Continuous(ref cs) => {
+                let dp_fn: fn(&Specific) -> f64 = match plot_params.dp_function {
+                    Some(DpFunction::Mean)      => Specific::dp_mean,
+                    Some(DpFunction::Median)    => Specific::dp_median,
+                    Some(DpFunction::Var)       => Specific::dp_var,
+                    Some(DpFunction::Uniq)      => Specific::dp_uniq,
+                    Some(DpFunction::Sum)       => Specific::dp_sum,
+                    None                        => Specific::hits2,
+                };
+                let (h,s,l) = cs.get(dp_fn(&self));
+                r.assign("fill", format!("hsl({}, {}%, {}%)", h, s, l));
+            },
+            plot::ColourScale::Discrete(ref cs) => {
+                let (h,s,l) = cs.get(self.asn());
+                r.assign("fill", format!("hsl({}, {}%, {}%)", h, s, l));
+            },
+        };
+
+/*
         if let Some(dcs) = &plot_params.discrete_colour_scale {
             let (h,s,l) = dcs.get(self.asn());
             r.assign("fill", format!("hsl({}, {}%, {}%)", h, s, l));
@@ -404,6 +428,7 @@ impl Specific {
             let (h,s,l) = plot_params.colour_scale.get(dp_fn(&self));
             r.assign("fill", format!("hsl({}, {}%, {}%)", h, s, l));
         }
+        */
 
         r
 
@@ -693,36 +718,6 @@ pub fn areas_to_rows(mut areas: Vec<Area>) -> Vec<Row> {
     }
 
     rows
-}
-
-
-// used for asn -> id mapping
-fn colour_from_map(asn: u32, mapping: &HashMap<u32, String>) -> String {
-
-    /*
-    if !mapping.contains_key(&asn) {
-        return "#eeeeee".to_string();
-    }
-
-    let uniq_values: HashSet<String> = HashSet::from_iter(mapping.values().cloned());
-    let mut uniq_sorted_values: Vec<String> = uniq_values.into_iter().collect();
-    uniq_sorted_values.sort();
-    let num_distinct_colours = uniq_sorted_values.len();
-    let index = uniq_sorted_values.iter().position(|e| e == mapping.get(&asn).unwrap()).unwrap();
-    */
-
-
-    let scale: HashMap<String, &str> = [  ("cluster0".to_string(),   "#ff0000"),
-                                            ("cluster1".to_string(), "#ffff00"),
-                                            ("cluster2".to_string(), "#00ff00"),
-                                            ("cluster3".to_string(), "#ff00ff"),
-                                            ("cluster4".to_string(), "#00ffff"),
-                                            ("cluster5".to_string(), "#0000ff"),
-                                            ].iter().cloned().collect();
-
-    // unwrap_or for non-existing asn-to-cluster mappings, eventually ending up in the gray #eee colour
-    scale.get(mapping.get(&asn).unwrap_or(&"_".to_string())).unwrap_or(&"#eeeeee").to_string()
-    //colour(index as u32, num_distinct_colours as u32)
 }
 
 

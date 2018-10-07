@@ -74,18 +74,8 @@ pub fn process_inputs(matches: &ArgMatches) -> (Vec<Specific> , PlotParams) {
     }
 
 
-    let mut plot_params = PlotParams::new(&table, &matches);
+    let plot_params = PlotParams::new(&table, &matches);
     debug!("{:#?}", plot_params);
-
-    // read extra ASN colour info, if any
-    if matches.is_present("asn-colours") {
-        plot_params.set_asn_colours(asn_colours_from_file(matches.value_of("asn-colours").unwrap()).unwrap());
-    }
-
-
-
-    debug!("{:#?}", plot_params);
-
 
     let mut specifics: Vec<Specific>  = table.into_iter().map(|(_,_,s)| s).collect();
     let mut specifics_with_hits = 0;
@@ -178,7 +168,7 @@ fn prefixes_from_file(input_fn: &str) -> io::Result<IpLookupTable<Ipv6Addr,Speci
 
 }
 
-fn asn_colours_from_file(f: &str) -> io::Result<HashMap<u32, String>> {
+pub fn asn_colours_from_file(f: &str) -> io::Result<HashMap<u32, String>> {
     let mut mapping: HashMap<u32, String> = HashMap::new();
     let mut file = File::open(f)?;
     let mut s = String::new();

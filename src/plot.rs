@@ -34,17 +34,23 @@ const TICK_FONT_SIZE: &str = "4px";
 
 pub const LEGEND_MARGIN_W: f64 = LEGEND_GRADIENT_WIDTH + 2.0*LEGEND_GRADIENT_MARGIN + 20.0;
 
+#[derive(Debug)]
+pub enum ColourScale {
+    Continuous(ContinuousColourScale),
+    Discrete(DiscreteColourScale),
+}
+
 
 #[derive(Debug)]
-pub struct ColourScale {
+pub struct ContinuousColourScale {
     min: f64,
     median: f64,
     max: f64,
 }
 
-impl ColourScale {
-    pub fn new(min: f64, median: f64, max: f64) -> ColourScale {
-        ColourScale {
+impl ContinuousColourScale {
+    pub fn new(min: f64, median: f64, max: f64) -> ContinuousColourScale {
+        ContinuousColourScale {
             min,
             median,
             max,
@@ -144,7 +150,6 @@ impl DiscreteColourScale {
         let mut classes = asn_colours.values().cloned().collect::<Vec<String>>();
         classes.sort();
         classes.dedup();
-        let no_of_colours = classes.len();
         DiscreteColourScale {
             asn_colours,
             classes,
@@ -155,7 +160,7 @@ impl DiscreteColourScale {
         let max_hue = 360_f64;
         let colour_diff = max_hue / self.classes.len() as f64;
         
-        let i = self.classes.iter().position(|c| c == self.asn_colours.get(&asn).unwrap() ).unwrap();
+        let i = self.classes.iter().position(|c| c == &self.asn_colours[&asn]).unwrap();
         let hue: f64 = i as f64 * colour_diff;
         (hue, COLOUR_SATURATION, COLOUR_LIGHTNESS)
     }
@@ -205,11 +210,9 @@ pub fn draw_svg(matches: &ArgMatches, rows: Vec<Row>, plot_params: &PlotParams) 
     }
 
 
-
-    let (defs, legend_g) = if matches.is_present("asn-colours") {
-        legend_discrete(&plot_params)
-    } else {
-        legend(&plot_params)
+    let (defs, legend_g) = match plot_params.colour_scale {
+        ColourScale::Continuous(ref cs) => legend(&cs),
+        ColourScale::Discrete(ref cs) => legend_discrete(&cs),
     };
 
     info!("plotting {} rectangles, limit was {}", areas_plotted, plot_limit);
@@ -224,6 +227,7 @@ pub fn draw_svg(matches: &ArgMatches, rows: Vec<Row>, plot_params: &PlotParams) 
 
     document.append(defs);
     document.append(legend_g);
+    document.append(legend_label(&plot_params));
     document
 
 }
@@ -239,7 +243,27 @@ fn format_tick(n: f64) -> String {
     }
 }
 
-fn legend(plot_params: &PlotParams) -> (Definitions, Group) {
+
+fn legend_label(plot_params: &PlotParams) -> Text {
+    let ticks_max_width = 3.0 * TICK_FONT_HEIGHT;
+
+    let mut legend_label = Text::new()
+        .set("font-family", "serif")
+        .set("font-size", TICK_FONT_SIZE)
+        .set("writing-mode", "tb-rl")
+        .set("x", TICK_X + ticks_max_width)
+        .set("y", HEIGHT / 2.0)
+        .set("text-anchor", "middle")
+        .set("transform", format!("rotate(180, {}, {})", TICK_X + ticks_max_width, HEIGHT / 2.0 ))
+        ;
+        
+        //.set("alignment-baseline", "hanging"); // this does not work in firefox
+        legend_label.append(Tekst::new(plot_params.legend_label.clone()));
+
+    legend_label
+}
+
+fn legend(colour_scale: &ContinuousColourScale) -> (Definitions, Group) {
     let mut defs = Definitions::new();
     let mut legend_g = Group::new();
     let mut gradient = LinearGradient::new()
@@ -251,7 +275,7 @@ fn legend(plot_params: &PlotParams) -> (Definitions, Group) {
 
     // 100% == top of gradient
     let steps = NO_OF_TICKS as u64;
-    let (colours, ticks) = plot_params.colour_scale.steps(steps);
+    let (colours, ticks) = colour_scale.steps(steps);
     for (i, (c, tick)) in colours.iter().zip(ticks.iter()).rev().enumerate() {
         let (h,s,l) = c;
         gradient.append(Stop::new()
@@ -283,37 +307,15 @@ fn legend(plot_params: &PlotParams) -> (Definitions, Group) {
                     ;
     legend_g.append(legend);
 
-
-
-    
-    // TODO: more precise way of determining actual maximum width
-    let ticks_max_width = 3.0 * TICK_FONT_HEIGHT;
-
-    let mut legend_label = Text::new()
-        .set("font-family", "serif")
-        .set("font-size", TICK_FONT_SIZE)
-        .set("writing-mode", "tb-rl")
-        .set("x", TICK_X + ticks_max_width)
-        .set("y", HEIGHT / 2.0)
-        .set("text-anchor", "middle")
-        .set("transform", format!("rotate(180, {}, {})", TICK_X + ticks_max_width, HEIGHT / 2.0 ))
-        ;
-        
-
-        //.set("alignment-baseline", "hanging"); // this does not work in firefox
-        legend_label.append(Tekst::new(plot_params.legend_label.clone()));
-
-    legend_g.append(legend_label);
-
     (defs, legend_g)
 }
 
-fn legend_discrete(plot_params: &PlotParams) -> (Definitions, Group) {
+fn legend_discrete(discrete_colour_scale: &DiscreteColourScale) -> (Definitions, Group) {
 
     let definitions = Definitions::new(); // not used for this legend
     let mut legend_g = Group::new();
     
-    let classes = &plot_params.discrete_colour_scale.as_ref().unwrap().classes;
+    let classes = &discrete_colour_scale.classes;
     let colour_diff = COLOUR_MAX_HUE_DISCRETE / classes.len() as f64;
     let tick_y_diff = (HEIGHT - TICK_FONT_HEIGHT) / (classes.len() - 1) as f64;
     for (i, class) in classes.iter().enumerate() {
