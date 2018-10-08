@@ -14,7 +14,8 @@ pub const COLOUR_INPUT: &str = "hits";
 
 // HSL Colour stuff
 const COLOUR_MAX_HUE: f64           = 240.0; // 0 == red, 240 == blue
-const COLOUR_MAX_HUE_DISCRETE: f64  = 320.0;
+//const COLOUR_MAX_HUE_DISCRETE: f64  = 300.0;
+const COLOUR_DISCRETE_HUE_DIFF: f64  = 60.0;
 const COLOUR_SATURATION: u32        = 90;
 const COLOUR_LIGHTNESS: u32         = 50;
 const COLOUR_GREY: (f64, u32, u32)  = (180_f64, 0, 90); // grey
@@ -144,6 +145,45 @@ impl ContinuousColourScale {
 pub struct DiscreteColourScale {
     asn_colours: HashMap<u32, String>,
     classes: Vec<String>,
+    colours: Vec<f64>,
+}
+
+struct DiscreteColourGenerator {
+    colour_count: u64,
+    diff_level: u32,
+    current_colour_diff: f64,
+    offset: f64,
+}
+
+impl DiscreteColourGenerator {
+    fn new() -> DiscreteColourGenerator {
+        DiscreteColourGenerator {
+            colour_count: 0,
+            offset: 0.0,
+            diff_level: 0,
+            current_colour_diff: COLOUR_DISCRETE_HUE_DIFF,
+        }
+    }
+}
+
+// generator for contrasting colours
+// first get 0, 60, 120, 180, ...
+// then set offset to 30
+// yield 30, 90, 150,
+// set offset to 15
+// yield 15, 75, 135
+// etc.
+impl Iterator for DiscreteColourGenerator {
+    type Item = f64;
+    fn next(&mut self) -> Option<f64> {
+        let r = self.offset + (self.colour_count % 6) as f64 * self.current_colour_diff;
+        self.colour_count += 1;
+        if self.colour_count % 6 == 0 {
+            self.diff_level += 1;
+            self.offset = self.current_colour_diff / f64::from(2_u32.pow(self.diff_level));
+        }
+        Some(r)
+    }
 }
 
 impl DiscreteColourScale {
@@ -151,19 +191,19 @@ impl DiscreteColourScale {
         let mut classes = asn_colours.values().cloned().collect::<Vec<String>>();
         classes.sort();
         classes.dedup();
+        let colours = DiscreteColourGenerator::new().take(classes.len()).collect::<Vec<f64>>();
         DiscreteColourScale {
             asn_colours,
             classes,
+            colours,
         }
     }
     // use with --asn-colours
     pub fn get(&self, asn: u32) -> (f64,u32,u32) {
-        let colour_diff = COLOUR_MAX_HUE_DISCRETE / self.classes.len() as f64;
-        
         // if we do not have a mapping for this ASN, gracefully return grey
         if let Some(asn_colour) = self.asn_colours.get(&asn) {
             if let Some(i) = self.classes.iter().position(|c| c == asn_colour) {
-                let hue: f64 = i as f64 * colour_diff;
+                let hue = self.colours[i];
                 return (hue, COLOUR_SATURATION, COLOUR_LIGHTNESS);
             }
         } else {
@@ -323,10 +363,9 @@ fn legend_discrete(discrete_colour_scale: &DiscreteColourScale) -> (Definitions,
     let mut legend_g = Group::new();
     
     let classes = &discrete_colour_scale.classes;
-    let colour_diff = COLOUR_MAX_HUE_DISCRETE / classes.len() as f64;
     let tick_y_diff = (HEIGHT - TICK_FONT_HEIGHT) / (classes.len() - 1) as f64;
     for (i, class) in classes.iter().enumerate() {
-        let (h,s,l) = (i as f64 * colour_diff, COLOUR_SATURATION, COLOUR_LIGHTNESS);
+        let (h,s,l) = (discrete_colour_scale.colours[i], COLOUR_SATURATION, COLOUR_LIGHTNESS);
         let legend_rect = Rectangle::new()
             .set("x", WIDTH + LEGEND_GRADIENT_MARGIN)
             .set("y", tick_y_diff * (i as f64))
@@ -364,6 +403,22 @@ mod tests{
         assert_eq!(h.round(), 0.0);
         let (h,_,_) = cs.get(45.0);
         assert_eq!(h.round(), 120.0);
+    }
+
+    #[test]
+    fn discrete_colour_gen() {
+        let dcg = DiscreteColourGenerator::new();
+        assert_eq!(dcg.take(6).collect::<Vec<f64>>(), vec![0.0, 60.0, 120.0, 180.0, 240.0, 300.0]);
+        let dcg = DiscreteColourGenerator::new();
+        assert_eq!(
+            dcg.take(11).collect::<Vec<f64>>(),
+            vec![0.0, 60.0, 120.0, 180.0, 240.0, 300.0, 30.0, 90.0, 150.0, 210.0, 270.0]
+            );
+        let dcg = DiscreteColourGenerator::new();
+        assert_eq!(
+            dcg.take(14).collect::<Vec<f64>>(),
+            vec![0.0, 60.0, 120.0, 180.0, 240.0, 300.0, 30.0, 90.0, 150.0, 210.0, 270.0, 330.0, 15.0, 75.0]
+            );
     }
 
     //#[test]
