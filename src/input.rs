@@ -75,7 +75,7 @@ pub fn process_inputs(matches: &ArgMatches) -> (Vec<Specific> , PlotParams) {
 
 
     let plot_params = PlotParams::new(&table, &matches);
-    debug!("{:#?}", plot_params);
+    //debug!("{:#?}", plot_params);
 
     let mut specifics: Vec<Specific>  = table.into_iter().map(|(_,_,s)| s).collect();
     let mut specifics_with_hits = 0;
@@ -175,6 +175,10 @@ pub fn asn_colours_from_file(f: &str) -> io::Result<HashMap<u32, String>> {
     file.read_to_string(&mut s)?;
     for line in s.lines() {
         let parts = line.split_whitespace().collect::<Vec<&str>>();
+        if parts.len() != 2 {
+            warn!("invalid line in asn-colours file: {}", line);
+            continue;
+        }
         let asn = parts[0].parse::<u32>().unwrap();
         let id = parts[1];
         mapping.insert(asn, id.to_string());

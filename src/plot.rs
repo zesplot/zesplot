@@ -17,6 +17,7 @@ const COLOUR_MAX_HUE: f64           = 240.0; // 0 == red, 240 == blue
 const COLOUR_MAX_HUE_DISCRETE: f64  = 320.0;
 const COLOUR_SATURATION: u32        = 90;
 const COLOUR_LIGHTNESS: u32         = 50;
+const COLOUR_GREY: (f64, u32, u32)  = (180_f64, 0, 90); // grey
 
 
 const LEGEND_GRADIENT_WIDTH: f64 = 3.0;     // width of the gradient itself
@@ -63,7 +64,7 @@ impl ContinuousColourScale {
     // h == 240 -> blue
     pub fn get(&self, dp: f64) -> (f64,u32,u32) {
         if dp == 0.0 || dp.is_nan() {
-            return (180_f64, 0, 90); // white grey-ish
+            return COLOUR_GREY;
         }
 
         assert!(dp >= 0.0);
@@ -99,7 +100,7 @@ impl ContinuousColourScale {
         //debug!("ColourScale::get: {}", dp);
         //debug!("ColourScale: {:?}", &self);
         if dp == 0.0 || dp.is_nan() {
-            return (180_f64, 10, 75); // grey
+            return COLOUR_GREY;
         }
         if (self.max - self.min) <= 1.0 {
             return (120_f64, 80, 50); // green ('mid of scale')
@@ -157,12 +158,18 @@ impl DiscreteColourScale {
     }
     // use with --asn-colours
     pub fn get(&self, asn: u32) -> (f64,u32,u32) {
-        let max_hue = 360_f64;
-        let colour_diff = max_hue / self.classes.len() as f64;
+        let colour_diff = COLOUR_MAX_HUE_DISCRETE / self.classes.len() as f64;
         
-        let i = self.classes.iter().position(|c| c == &self.asn_colours[&asn]).unwrap();
-        let hue: f64 = i as f64 * colour_diff;
-        (hue, COLOUR_SATURATION, COLOUR_LIGHTNESS)
+        // if we do not have a mapping for this ASN, gracefully return grey
+        if let Some(asn_colour) = self.asn_colours.get(&asn) {
+            if let Some(i) = self.classes.iter().position(|c| c == asn_colour) {
+                let hue: f64 = i as f64 * colour_diff;
+                return (hue, COLOUR_SATURATION, COLOUR_LIGHTNESS);
+            }
+        } else {
+            debug!("no mapping for {} in --asn-colours file", &asn);
+        }
+        COLOUR_GREY
     }
 }
 
